@@ -20,10 +20,17 @@ VolumeFraction = varargin{2};
 LengthDensity = varargin{3};
 BranchDensity = varargin{4};
 Tortuosity = varargin{5};
-Diameter = varargin{6};
 
-% Create summary statistics table
-ptable = table(Pairs, VolumeFraction, LengthDensity, BranchDensity,...
-    Tortuosity, Diameter);
+%% Create table depending on whether diameter is included
 
+if nargin == 6
+    % Diameter is included
+    Diameter = varargin{6};
+    % Create summary statistics table
+    ptable = table(Pairs, VolumeFraction, LengthDensity, BranchDensity,...
+        Tortuosity, Diameter);
+else
+    % Diameter is included
+    ptable = table(Pairs, VolumeFraction, LengthDensity, BranchDensity,...
+        Tortuosity);
 end

@@ -431,7 +431,7 @@ end
 % Iterate over each metric, choose one depth from each subject, normalize
 % the colorbar across all subjects for this metric.
 
-%{
+
 % Load Heat map
 heat_out = append('heatmap_',num2str(cube_side),'.mat');
 heat_out = fullfile(mpath, heat_out);
@@ -592,9 +592,10 @@ for d = 1:Ndepths
     c.Label.Rotation = 270;
     % Increase fontsize of colorbar
     c.FontSize = 40;
-    % Remove x and y tick labels
+    % Remove x,y tick labels and border around image
     set(gca,'Yticklabel',[]);
     set(gca,'Xticklabel',[]);
+    set(gca,'visible','off')
     
     %%% Save figure as PNG
     % If there are multiple heatmaps in the matrix, save vascular heatmap

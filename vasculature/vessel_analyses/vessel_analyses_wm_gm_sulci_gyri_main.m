@@ -63,10 +63,15 @@ hm_filename = append('heatmap_distro_',num2str(roi_size),'.mat');
 hm = load(fullfile(mpath,hm_filename));
 hm = hm.hm_distro;
 % Average Heatmap Parameters
-hm_params = {'vf','ld','bd','tort','diam'};
+hm_params = {'vf','ld','bd','tort'};
+% Y-axis labels
+ylabels = {'Volume Fraction (unitless)','Length Density (mm/mm^3)',...
+            'Branch Density (1/mm^3)','Tortuosity (unitless)'};
 % Output filename for saving the heatmap p-value table
 ptable_out_heatmap = append('p_value_table_heatmap_distro_',...
                             num2str(roi_size),'.xls');
+% Order of groups (left to right) of violin plots
+violin_order = {'HC','AD','CTE'};
 
 %%% Brain regions for statistics
 % Region of brain (excluding ratios)
@@ -110,7 +115,7 @@ for ii = 1:length(regions)
     end
 end
 
-%% Reorganize data and generate barcharts
+%% Reorganize data
 % This script will reorganize the metrics struct by taking the region from
 % each subject and combining them into a single substruct (e.g. taking the
 % "tiss" region from each subject and creating a substruct named
@@ -123,9 +128,6 @@ titles = {'Length Density','Branch Density','Volume Fraction',...
 % Region titles
 r_titles = {'Tissue', 'Gyri', 'Sulci', 'GM', 'WM',...
             'GM Sulci', 'WM Sulci', 'GM Gyri', 'WM Gyri'};
-% Y-axis labels
-ylabels = {'Length Density (mm/mm^2)','Branch Density (mm/mm^3)',...
-            'Volume Fraction (a.u.)','Count'};
 % Name of file to save
 plot_names = {'length_density','branch_density','volume_fraction'...
     'tortuosity_outliers'};
@@ -143,17 +145,6 @@ for ii = 1:length(regions)
         metrics.(regions{ii}).(params{j}).ad = ad;
         metrics.(regions{ii}).(params{j}).cte = cte;
         metrics.(regions{ii}).(params{j}).nc = nc;
-        % Create and save the bar chart (except for tortuosity
-%         if j~=5
-%             % Filename to save
-%             plot_name = strcat(regions{ii},'_',plot_names{j});
-%             % Title for bar chart
-%             tstr = append(r_titles{ii},' - ', titles{j});
-%             % Create bar chart and save output
-%             bar_chart(ad, cte, nc, subids, mpath, tstr,'',...
-%                       ylabels{j}, plot_name);
-%             close;
-%         end
     end
 
     %%% Organize the heatmap ROI values for each subject
@@ -170,143 +161,11 @@ for ii = 1:length(regions)
     end
 end
 
-%% (Fig. 2) Violin Plots: Heatmap distribution intra-group differences
-
-% Plot titles
-vtitle_param = {'Volume Fraction','Length Density','Branch Density',...
-    'Tortuosity','Diameter'};
-vtitle_tissue = {'Entire Volume','Gyri','Sulci','GM','WM',...
-                'GM Sulci','WM Sulci','GM Gyri','WM Gyri'};
-% Y-axis labels
-ylabels = {'Volume Fraction (a.u.)','Length Density (mm/mm^3)',...
-            'Branch Density (1/mm^3)','Tortuosity (a.u.)',...
-            'Diameter (\mum)'};
-
-%%% Iterate over vascular metrics
-for ii = 1:length(hm_params)
-    %%% Iterate over brain regions
-    for j = 1:length(regions)
-        % Initialize array to store the values
-        v_array = [];
-        % Store disease/control group index (AD, CTE, HC)
-        group_idx = {};
-        % Store subject ID (AD_123,...)
-        sub_idx = {};
-        % Counters for number of violin plots for each group. Start with 1
-        % to account for the whole group violin plot.
-        n_ad = 1; n_cte = 1; n_hc = 1;
-        
-        %%% Iterate over subjects
-        for k = 1:length(subids)
-            % Retrieve array for subject
-            sub_distro = hm.(subids{k}).(regions{j}).(hm_params{ii});
-            % Create cell array for subject ID
-            sub_str = repmat({subids{k}},[length(sub_distro),1]);
-            % Create label cell array
-            if contains(subids{k},'AD')
-                sub_group = repmat({'AD'},[length(sub_distro),1]);
-                n_ad = n_ad + 1;
-            elseif contains(subids{k},'CTE')
-                sub_group = repmat({'CTE'},[length(sub_distro),1]);
-                n_cte = n_cte + 1;
-            else
-                sub_group = repmat({'HC'},[length(sub_distro),1]);
-                n_hc = n_hc + 1;
-            end
-            % Concatenate the group and subject index arrays
-            group_idx = vertcat(group_idx, sub_group);
-            sub_idx = vertcat(sub_idx, sub_str);
-            % Vertically concatenate the distro arrays into single vert array
-            v_array = vertcat(v_array, sub_distro);
-        end
-        
-        %%% Initialize table for violin plots
-        vtable = table(group_idx,sub_idx, v_array);
-    
-        %%% Call function to generate violin plot
-        % violin plot (no points)
-        grpandplot(vtable,"v_array",yTitle=ylabels{ii},...
-                   xFactor="sub_idx",...
-                   cFactor="group_idx",...
-                   showXLine=false,showVln=true,showBox=false,...
-                   showPnt=false, showMean=false,log=log_bool,...
-                   pntSize=5,w = 1,pntFillC='k',gap=0.6);
-        title({vtitle_tissue{j},vtitle_param{ii}});
-        set(gca, 'FontSize', 30)
-        % Save output
-        fname = append('heatmap_',hm_params{ii},'_',regions{j},'_violin');
-        fout = fullfile(mpath,'heatmaps',fname);
-        pause(0.1)
-        saveas(gcf,fout,'png');
-        close;
-    end
-end
-%}
-
-%% (Fig. 2) Violin Plots: Heatmap distribution inter-group differences
-
-%%% Iterate over vascular metrics
-for ii = 1:length(hm_params)
-    % Initialize array to store the values
-    v_array = [];
-    % Store disease state index (AD, CTE, HC)
-    group_idx = {};
-    % Store brain region index ()
-    region_idx = {};
-
-    %%% Iterate over brain regions
-    for j = 1:length(regions)
-        % Vertically concatenate the [AD; CTE; NC] into single vert array
-        ad = hm.(regions{j}).(hm_params{ii}).ad;
-        cte = hm.(regions{j}).(hm_params{ii}).cte;
-        nc = hm.(regions{j}).(hm_params{ii}).nc;
-        v_array = vertcat(v_array, ad, cte, nc);
-        n_samples = length(ad) + length(cte) + length(nc);
-
-        % Initialize labels for comparisons within each group (AD, CTE, HC)
-        ad = repmat({'AD'},[length(ad),1]);
-        cte = repmat({'CTE'},[length(cte),1]);
-        nc = repmat({'HC'},[length(nc),1]);
-        group_idx = vertcat(group_idx, ad, cte, nc);
-
-        % Initialize label for comparisons between brain regions
-        region_idx = vertcat(region_idx,...
-            repmat(cellstr(xlabels{j}),[n_samples,1]));
-    end
-
-    %%% Initialize table for violin plots
-    vtable = table(region_idx, group_idx, v_array);
-
-    %%% Call function to generate violin plot
-    % Group each AD/HC/CTE comparison by tissue
-    grpandplot(vtable,"v_array", yTitle = ylabels{ii},...
-        xFactor="region_idx", cFactor = "group_idx", xOrder = xlabels,...
-        showXLine = true, showVln = true, showBox = false, showMean=false,...
-        showPnt = false, showNum = false, numYPos = 500, pntSize=5,...
-        gap=0.6, log=log_bool);
-    set(gca, 'FontSize', 30)
-    % Save output
-    fout = fullfile(mpath,'/heatmaps/',append('heatmap_',hm_params{ii},'_violin'));
-    pause(0.1)
-    saveas(gcf,fout,'png');
-    close;
-end
-%}
-
-%% Fig.2 - Heatmap Statistical Hypothesis Testing (LME model)
-% Significant Difference threshold
-alpha = 0.05;
-% Calculate stats
-hm_stats = calc_heatmap_stats(hm, regions, hm_params, subids, alpha,...
-                             mpath, ptable_out_heatmap);
-
 %% Calculate ratio of sulci/gyri
 % This cannot be calculated for the tortuosity since it's an array of
 % values.
 
 % Cell array of parameters to compute ratio 
-ratio_params = {'length_density','branch_density','fraction_volume',...
-    'tort_outliers'};
 ratio_params = params;
 groups = {'ad','cte','nc'};
 
@@ -337,7 +196,209 @@ for ii = 1:length(ratio_params)
     end
 end
 
+%% (Fig. 2) Violin Plots: Heatmap distribution intra-group differences
+
+% Plot titles
+vtitle_param = {'Volume Fraction','Length Density','Branch Density',...
+    'Tortuosity','Diameter'};
+vtitle_tissue = {'Entire Volume','Gyri','Sulci','GM','WM',...
+                'GM Sulci','WM Sulci','GM Gyri','WM Gyri'};
+% Color of each group (HC, AD, CTE)
+cmap = ["#648FFF";"#DC267F";"#FFB000"];
+
+%%% Sort the subids to be in the order NC, AD, CTE
+nc_ids = find(contains(subids,'NC'));
+ad_ids = find(contains(subids,'AD'));
+cte_ids = find(contains(subids,'CTE'));
+sub_sort = {subids{nc_ids},subids{ad_ids},subids{cte_ids}}';
+
+%%% Iterate over vascular metrics
+for ii = 1:length(hm_params)
+    %%% Iterate over brain regions
+    for j = 1:length(regions)
+        % Initialize array to store the values
+        v_array = [];
+        % Store disease/control group index (AD, CTE, HC)
+        group_idx = {};
+        % Store subject ID (AD_123,...)
+        sub_idx = {};
+        % Counters for number of violin plots for each group. Start with 1
+        % to account for the whole group violin plot.
+        n_ad = 1; n_cte = 1; n_hc = 1;
+        
+        %%% Iterate over subjects
+        for k = 1:length(sub_sort)
+            % Retrieve array for subject
+            sub_distro = hm.(sub_sort{k}).(regions{j}).(hm_params{ii});
+            % Create cell array for subject ID
+            sub_str = repmat({sub_sort{k}},[length(sub_distro),1]);
+            % Create label cell array
+            if contains(sub_sort{k},'AD')
+                sub_group = repmat({'AD'},[length(sub_distro),1]);
+                n_ad = n_ad + 1;
+            elseif contains(sub_sort{k},'CTE')
+                sub_group = repmat({'CTE'},[length(sub_distro),1]);
+                n_cte = n_cte + 1;
+            else
+                sub_group = repmat({'HC'},[length(sub_distro),1]);
+                n_hc = n_hc + 1;
+            end
+            % Concatenate the group and subject index arrays
+            group_idx = vertcat(group_idx, sub_group);
+            sub_idx = vertcat(sub_idx, sub_str);
+            % Vertically concatenate the distro arrays into single vert array
+            v_array = vertcat(v_array, sub_distro);
+        end
+        
+        %%% Initialize table for violin plots
+        vtable = table(group_idx,sub_idx, v_array);
+    
+        %%% Call function to generate violin plot
+        % violin plot (no points)
+        grpandplot(vtable,"v_array",yTitle=ylabels{ii},...
+                   xFactor="sub_idx",xLvls=sub_sort,...
+                   cFactor="group_idx",cOrder=violin_order,...
+                   showXLine=false,showVln=true,showBox=false,...
+                   showPnt=false, showMean=false,log=log_bool,...
+                   pntSize=5,w = 1,pntFillC='k',gap=0.6, cmap=cmap);
+        title({vtitle_tissue{j},vtitle_param{ii}});
+        set(gca, 'FontSize', 25)
+        set(gca,'Xtick',[])
+        
+        % Save output
+        fname = append('heatmap_',hm_params{ii},'_',regions{j},'_violin');
+        fout = fullfile(mpath,'heatmaps',fname);
+        pause(0.1)
+        saveas(gcf,fout,'png');
+        close;
+    end
+end
+%}
+
+
+%% (Fig. 2) Violin Plots: Heatmap distribution inter-group differences
+
+% Color of each group (HC, AD, CTE)
+cmap = ["#648FFF";"#DC267F";"#FFB000"];
+
+%%% Iterate over vascular metrics
+for ii = 1:length(hm_params)
+    % Initialize array to store the values
+    v_array = [];
+    % Store disease state index (AD, CTE, HC)
+    group_idx = {};
+    % Store brain region index ()
+    region_idx = {};
+
+    %%% Iterate over brain regions
+    for j = 1:length(regions)
+        % Vertically concatenate the [AD; CTE; NC] into single vert array
+        nc = hm.(regions{j}).(hm_params{ii}).nc;
+        ad = hm.(regions{j}).(hm_params{ii}).ad;
+        cte = hm.(regions{j}).(hm_params{ii}).cte;
+        v_array = vertcat(v_array, nc, ad, cte);
+        n_samples = length(ad) + length(cte) + length(nc);
+
+        % Initialize labels for comparisons within each group (AD, CTE, HC)
+        nc = repmat({'HC'},[length(nc),1]);
+        ad = repmat({'AD'},[length(ad),1]);
+        cte = repmat({'CTE'},[length(cte),1]);
+        group_idx = vertcat(group_idx, nc, ad, cte);
+
+        % Initialize label for comparisons between brain regions
+        region_idx = vertcat(region_idx,...
+            repmat(cellstr(xlabels{j}),[n_samples,1]));
+    end
+
+    %%% Initialize table for violin plots
+    vtable = table(region_idx, group_idx, v_array);
+
+    %%% Call function to generate violin plot
+    % Group each AD/HC/CTE comparison by tissue
+    grpandplot(vtable,"v_array", yTitle = ylabels{ii},...
+        xFactor="region_idx", cFactor="group_idx", cOrder=violin_order,...
+        xOrder = xlabels,...
+        showXLine = true, showVln = true, showBox = false, showMean=false,...
+        showPnt = false, showNum = false, numYPos = 500, pntSize=5,...
+        gap=0.6, log=log_bool,cmap = cmap);
+    set(gca, 'FontSize', 25)
+    % Save output
+    fout = fullfile(mpath,'/heatmaps/',append('heatmap_',hm_params{ii},'_violin'));
+    pause(0.1)
+    saveas(gcf,fout,'png');
+    close;
+end
+%}
+
+%% (ICNA 2024 Figure) Violin Plots (AD vs. HC): Heatmap inter-group
+% Only compare AD vs. HC for the ICNA presentation
+
+% Color of each group
+% cmap = [0 0.447 0.741; 0.635 0.078 0.184];
+cmap = ["#648FFF";"#DC267F"];
+
+% Order of violin plots
+violin_order_hc_ad = {'HC','AD'};
+
+%%% Iterate over vascular metrics
+for ii = 1:length(hm_params)
+    % Initialize array to store the values
+    v_array = [];
+    % Store disease state index (AD, CTE, HC)
+    group_idx = {};
+    % Store brain region index ()
+    region_idx = {};
+
+    %%% Iterate over brain regions
+    for j = 1:length(regions)
+        % Vertically concatenate the [AD; CTE; NC] into single vert array
+        nc = hm.(regions{j}).(hm_params{ii}).nc;
+        ad = hm.(regions{j}).(hm_params{ii}).ad;
+        v_array = vertcat(v_array, nc, ad);
+        n_samples = length(ad) + length(nc);
+
+        % Initialize labels for comparisons within each group (AD, CTE, HC)
+        nc = repmat({'HC'},[length(nc),1]);
+        ad = repmat({'AD'},[length(ad),1]);
+        group_idx = vertcat(group_idx, nc, ad);
+
+        % Initialize label for comparisons between brain regions
+        region_idx = vertcat(region_idx,...
+            repmat(cellstr(xlabels{j}),[n_samples,1]));
+    end
+
+    %%% Initialize table for violin plots
+    vtable = table(region_idx, group_idx, v_array);
+
+    %%% Call function to generate violin plot
+    % Group each AD/HC/CTE comparison by tissue
+    grpandplot(vtable,"v_array", yTitle = ylabels{ii},...
+        xFactor="region_idx",...
+        cFactor = "group_idx", cOrder = violin_order_hc_ad,...
+        xOrder = xlabels,...
+        showXLine = true, showVln = true, showBox = false, showMean=false,...
+        showPnt = false, showNum = false, numYPos = 500, pntSize=5,...
+        gap=1, log=log_bool, cmap = cmap);
+    set(gca, 'FontSize', 30);
+    % Save output
+    fout = fullfile(mpath,'/heatmaps/',append('heatmap_ad_nc_', ...
+                    hm_params{ii},'_violin'));
+    pause(0.1)
+    saveas(gcf,fout,'png');
+    close;
+end
+
+%% Fig.2 - Heatmap Statistical Hypothesis Testing (LME model)
+% Linear Mixed Effects Model
+
+% Significant Difference threshold
+alpha = 0.05;
+% Calculate stats
+hm_stats = calc_heatmap_stats(hm, regions, hm_params, subids, alpha,...
+                             mpath, ptable_out_heatmap);
+
 %% Fig. 3: Statistical Hypothesis Testing (average for each region)
+% Kruskal-Wallis
 
 % Trend threshold
 trend = 0.10;
@@ -357,6 +418,12 @@ ylabels = {'Length Density (mm/mm^3)','Branch Density (1/mm^3)',...
             'Volume Fraction (a.u.)','N Outliers',...
             'Tortuosity (a.u.)','Diameter (\mum)'};
 
+% Color of each group (HC, AD, CTE)
+cmap = ["#648FFF";"#DC267F";"#FFB000"];
+
+% Order of violin plots
+order_hc_ad_cte = {'HC','AD','CTE'};
+
 for ii = 1:length(params)
     % Initialize array to store the values
     v_array = [];
@@ -368,17 +435,17 @@ for ii = 1:length(params)
     %%% Iterate over brain regions
     for j = 1:length(regions)
         % Vertically concatenate the [AD; CTE; NC] into single vert array
+        nc = metrics.(regions{j}).(params{ii}).nc;
         ad = metrics.(regions{j}).(params{ii}).ad;
         cte = metrics.(regions{j}).(params{ii}).cte;
-        nc = metrics.(regions{j}).(params{ii}).nc;
-        v_array = vertcat(v_array, ad, cte, nc);
+        v_array = vertcat(v_array,nc,ad,cte);
         n_samples = length(ad) + length(cte) + length(nc);
 
         % Initialize labels for comparisons within each group (AD, CTE, HC)
+        nc = repmat({'HC'},[length(nc),1]);
         ad = repmat({'AD'},[length(ad),1]);
         cte = repmat({'CTE'},[length(cte),1]);
-        nc = repmat({'HC'},[length(nc),1]);
-        group_idx = vertcat(group_idx, ad, cte, nc);
+        group_idx = vertcat(group_idx,nc,ad,cte);
 
         % Initialize label for comparisons between brain regions
         region_idx = vertcat(region_idx,...
@@ -388,15 +455,15 @@ for ii = 1:length(params)
     %%% Initialize table for violin plots
     vtable = table(region_idx, group_idx, v_array);
 
-    %%% Call function to generate violin plot
+    %%% Call function to generate box/whisker plot w/o whiskers
     % Group each AD/HC/CTE comparison by tissue
     grpandplot(vtable,"v_array", yTitle=ylabels{ii},...
         xFactor="region_idx", cFactor="group_idx", xOrder=xlabels,...
-        showXLine=true, showVln=false, showBox=false, showMean=true,...
-        showPnt=true, pntOnTop=true,jitter=false,...
-        showNum=false, numYPos=500, pntSize=40,...
-        gap=0.6, log=log_bool);
-    set(gca, 'FontSize', 30)
+        showXLine=true, showVln=false, showBox=false, showMedBox=true,...
+        showMean=false,showPnt=false, pntOnTop=true,jitter=false,...
+        showNum=false, numYPos=500, pntSize=40, cOrder=order_hc_ad_cte,...
+        w=0.18, gap=0.6, log=false, cmap=cmap);
+    set(gca, 'FontSize', 25)
     % Save output
     if ~exist(fullfile(mpath,'/swarmchart/'))
         mkdir(fullfile(mpath,'/swarmchart/'));

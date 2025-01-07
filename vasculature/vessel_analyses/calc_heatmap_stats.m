@@ -203,6 +203,18 @@ for ii = 1:length(regions)
         pstats.(regions{ii}).(params{j}).p.ad_nc = p(1);
         pstats.(regions{ii}).(params{j}).p.cte_nc = p(2);
 
+        % Save the standard error
+        pstats.(regions{ii}).(params{j}).se.ad_nc = stats_ad_nc{2,3};
+        pstats.(regions{ii}).(params{j}).se.cte_nc = stats_cte_nc{2,3};
+
+        % Save the t-statistic
+        pstats.(regions{ii}).(params{j}).t.ad_nc = stats_ad_nc{2,4};
+        pstats.(regions{ii}).(params{j}).t.cte_nc = stats_cte_nc{2,4};
+
+        % Save the degrees of freedom
+        pstats.(regions{ii}).(params{j}).df.ad_nc = stats_ad_nc{2,5};
+        pstats.(regions{ii}).(params{j}).df.cte_nc = stats_cte_nc{2,5};
+
         % Save the median, mean, & std dev for each comparison
         pstats.(regions{ii}).(params{j}).med.ad = med_ad;
         pstats.(regions{ii}).(params{j}).med.cte = med_cte;
@@ -219,55 +231,14 @@ for ii = 1:length(regions)
     %% Generate a table of p-values for the region
     % Create cell array for the pairwise comparisons
     Metric = {'AD vs. HC p-value'; 'CTE vs. HC p-value';...
-            'AD vs. HC coeff'; 'CTE vs. HC coeff'; 
+            'AD vs. HC coeff'; 'CTE vs. HC coeff';
+            'AD vs. HC std error'; 'CTE vs. HC std error';...
+            'AD vs. HC t-statistic'; 'CTE vs. HC t-statistic';...
+            'AD vs. HC df'; 'CTE vs. HC df';...
             'AD vs. HC C.I. (lower)'; 'CTE vs. HC C.I.(lower)';...
             'AD vs. HC C.I. (upper)'; 'CTE vs. HC C.I. (upper)';...
             'AD Med.';'CTE Med.';'HC Med.';...
             'AD Std.Dev.';'CTE Std.Dev.';'HC Std.Dev.'};
-    
-    %{
-    %%% Retrieve the p-values for each parameter
-    VolumeFraction = cell2mat(struct2cell(pstats.(regions{ii}).(params{1}).p));
-    LengthDensity = cell2mat(struct2cell(pstats.(regions{ii}).(params{2}).p));
-    BranchDensity = cell2mat(struct2cell(pstats.(regions{ii}).(params{3}).p));
-    Tortuosity = cell2mat(struct2cell(pstats.(regions{ii}).(params{4}).p));
-    Diameter = cell2mat(struct2cell(pstats.(regions{ii}).(params{5}).p));
-    
-    %%% Retrieve coefficient and C.I. and add to metrics
-    % Volume Fraction
-    coef = cell2mat(struct2cell(pstats.(regions{ii}).(params{1}).coef));
-    cil = cell2mat(struct2cell(pstats.(regions{ii}).(params{1}).CI_lower));
-    ciu = cell2mat(struct2cell(pstats.(regions{ii}).(params{1}).CI_upper));
-    VolumeFraction = [VolumeFraction; coef; cil; ciu];
-    % Length Density
-    coef = cell2mat(struct2cell(pstats.(regions{ii}).(params{2}).coef));
-    cil = cell2mat(struct2cell(pstats.(regions{ii}).(params{2}).CI_lower));
-    ciu = cell2mat(struct2cell(pstats.(regions{ii}).(params{2}).CI_upper));
-    LengthDensity = [LengthDensity; coef; cil; ciu];
-    % Branch Density
-    coef = cell2mat(struct2cell(pstats.(regions{ii}).(params{3}).coef));
-    cil = cell2mat(struct2cell(pstats.(regions{ii}).(params{3}).CI_lower));
-    ciu = cell2mat(struct2cell(pstats.(regions{ii}).(params{3}).CI_upper));
-    BranchDensity = [BranchDensity; coef; cil; ciu];
-
-    %%% Retrieve the summary stats for each parameter (median, std. dev.)
-    % Volume Fraction
-    med = cell2mat(struct2cell(pstats.(regions{ii}).(params{1}).med));
-    stdd = cell2mat(struct2cell(pstats.(regions{ii}).(params{1}).std));
-    VolumeFraction = [VolumeFraction; med; stdd];
-    % Length Density
-    med = cell2mat(struct2cell(pstats.(regions{ii}).(params{2}).med));
-    stdd = cell2mat(struct2cell(pstats.(regions{ii}).(params{2}).std));
-    LengthDensity = [LengthDensity; med; stdd];
-    % Branch Density
-    med = cell2mat(struct2cell(pstats.(regions{ii}).(params{3}).med));
-    stdd = cell2mat(struct2cell(pstats.(regions{ii}).(params{3}).std));
-    BranchDensity = [BranchDensity; med; stdd];
-
-    %%% Create the p-value table
-    ptable = make_heatmap_ptable(Metric,VolumeFraction,LengthDensity,...
-                                BranchDensity);
-    %}
     
     % Initialize structure for storing 
     stat_struct = struct();
@@ -277,23 +248,32 @@ for ii = 1:length(regions)
 
     % Iterate over each parameter
     for j = 1:length(params)
-        % Retrieve p-value
+        % Retrieve p-value + summary stats
         p = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).p));
+        se = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).se));
+        t = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).t));
+        df = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).df));
         % Retrieve rho coefficient & confidence interval
         coef = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).coef));
         cil = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).CI_lower));
         ciu = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).CI_upper));
-        % Retrieve summary stats
+        % Retrieve median and standard deviation
         med = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).med));
         stdd = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).std));
         % Add summary stats to struct
-        stat_struct.(param_name{j}) = [p; coef; cil; ciu; med; stdd];
+        stat_struct.(param_name{j}) =...
+            [p; coef; se; t; df; cil; ciu; med; stdd];
     end
     
-    % Create the summary statistics table
+    % Create the summary statistics table (including diameter)
+%     ptable = make_heatmap_ptable(Metric,stat_struct.(param_name{1}),...
+%         stat_struct.(param_name{2}),stat_struct.(param_name{3}),...
+%         stat_struct.(param_name{4}),stat_struct.(param_name{5}));
+
+    % Create the summary statistics table (excluding diameter)
     ptable = make_heatmap_ptable(Metric,stat_struct.(param_name{1}),...
-        stat_struct.(param_name{2}),stat_struct.(param_name{3}),...
-        stat_struct.(param_name{4}),stat_struct.(param_name{5}));
+            stat_struct.(param_name{2}),stat_struct.(param_name{3}),...
+            stat_struct.(param_name{4}));
     
     %%% Save table to CSV on a specific sheet
     % Create output filename

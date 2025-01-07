@@ -5,7 +5,7 @@
 % The output will be "heatmap_ab_ptau_[ROI size in microns].mat"
 
 %% Add top-level directory of code repository to path
-clear; clc; close all;
+clear; clc; %close all;
 % Print current working directory
 mydir  = pwd;
 % Find indices of slashes separating directories
@@ -58,8 +58,9 @@ mdir = '/dist_corrected/volume/ref/masks';
 mpath = ['/projectnb/npbssmic/ns/Ann_Mckee_samples_55T/metrics/' ...
     'gsigma_1-3-5_2-3-4_3-5-7_5-7-9_7-9-11/p18/'];
 % Stain heatmap output directory
-path_output_dir = ['/projectnb/npbssmic/ns/Ann_Mckee_samples_55T/' ...
-    'metrics/pathology_heatmaps/'];
+path_output_dir = ['/projectnb/npbssmic/ns/Ann_Mckee_samples_55T/metrics/' ...
+                'gsigma_1-3-5_2-3-4_3-5-7_5-7-9_7-9-11/p18/heatmaps/' ...
+                'heatmaps_pathology_registration/'];
 
 %%% Filenames
 % Masked combined segmentations (.MAT)
@@ -68,20 +69,17 @@ seg_name = 'seg_refined_masked.mat';
 graph_name = 'seg_refined_masked_rmloop_graph_data.mat';
 
 %%% Subvolume parameters
-% Isotropic cube length (microns)
-cube_side = 1000;
+% Vasculature isotropic cube side length (microns)
+vasc_cube_side = 1000;
+% Pathology isotropic cube side length (microns) 
+path_cube_side = 204;
 % Size of each voxel (microns)
 vox = [12, 12, 15];
 % Whether to plot non-normalized heatmaps for each depth
 viz_individual = false;
 
-%%% Compute number of voxels in x,y,z for each cube
-n_x = floor(cube_side ./ vox(1));
-n_y = floor(cube_side ./ vox(2));
-n_z = floor(cube_side ./ vox(3));
-
 %% Pathology heatmap: A-beta and p-tau
-%{
+
 % Initialize struct to store pathology heatmap
 path_heatmap = struct();
 % Title above figures
@@ -90,56 +88,56 @@ tstr = {'A-beta','P-tau'};
 stains = {'ab','pt'};
 % Filenames of each stain
 stain_fname = struct();
-stain_fname.AD_10382.ab = 'AD_10382_slice_8_Ab';
-stain_fname.AD_10382.pt = 'AD_10382_slice_14_AT8';
-stain_fname.AD_20832.ab = 'AD_20832_slice_8_Ab';
-stain_fname.AD_20832.pt = 'AD_20832_slice_14_AT8';
-stain_fname.AD_20969.ab = 'AD_20969_Ab';
-stain_fname.AD_20969.pt = 'AD_20969_AT8';
-stain_fname.AD_21354.ab = 'AD_21354_slice_8_Ab';
-stain_fname.AD_21354.pt = 'AD_21354_slice_2_AT8';
-stain_fname.AD_21424.ab = 'AD_21424_slice_14_Ab';
-stain_fname.AD_21424.pt = 'AD_21424_slice_20_AT8';
-stain_fname.CTE_6489.ab = 'CTE_6489_slice_14_Ab';
-stain_fname.CTE_6489.pt = 'CTE_6489_slice_8_AT8';
-stain_fname.CTE_6912.ab = 'CTE_6912_slice_8_Ab';
-stain_fname.CTE_6912.pt = 'CTE_6912_slice_14_AT8';
-stain_fname.CTE_7019.ab = 'CTE_7019_slice_8_Ab';
-stain_fname.CTE_7019.pt = 'CTE_7019_slice_14_AT8';
-stain_fname.CTE_7126.ab = 'CTE_7126_slice_14_Ab';
-stain_fname.CTE_7126.pt = 'CTE_7126_slice_8_AT8';
-stain_fname.NC_21499.ab = 'NC_21499_slice_14_Ab';
-stain_fname.NC_21499.pt = 'NC_21499_slice_8_AT8';
-stain_fname.NC_6839.ab = 'NC_6839_Ab';
-stain_fname.NC_6839.pt = 'NC_6839_AT8';
-stain_fname.NC_8095.ab = 'NC_8095_slice_8_Ab';
-stain_fname.NC_8095.pt = 'NC_8095_slice_2_AT8';
-% Minimum thresholds for segmenting plaques (after taking compliment)
-stain_thresh = struct();
-stain_thresh.AD_10382.ab = 0.2;
-stain_thresh.AD_10382.pt = 0.2;
-stain_thresh.AD_20832.ab = 0;
-stain_thresh.AD_20832.pt = 0.10;
-stain_thresh.AD_20969.ab = 0.10;
-stain_thresh.AD_20969.pt = 0.10;
-stain_thresh.AD_21354.ab = 0.23;
-stain_thresh.AD_21354.pt = 0.11;
-stain_thresh.AD_21424.ab = 0.15;
-stain_thresh.AD_21424.pt = 0.15;
-stain_thresh.CTE_6489.ab = 0.16;
-stain_thresh.CTE_6489.pt = 0.13;
-stain_thresh.CTE_6912.ab = 0.10;
-stain_thresh.CTE_6912.pt = 0.13;
-stain_thresh.CTE_7019.ab = 0.15;
-stain_thresh.CTE_7019.pt = 0.15;
-stain_thresh.CTE_7126.ab = 0.15;
-stain_thresh.CTE_7126.pt = 0.15;
-stain_thresh.NC_21499.ab = 0.10;
-stain_thresh.NC_21499.pt = 0.10;
-stain_thresh.NC_6839.ab = 0.10;
-stain_thresh.NC_6839.pt = 0.10;
-stain_thresh.NC_8095.ab = 0.10;
-stain_thresh.NC_8095.pt = 0.10;
+stain_fname.AD_10382.ab = 'AD_10382_Ab_segmented';
+stain_fname.AD_10382.pt = 'AD_10382_AT8_segmented';
+stain_fname.AD_20832.ab = 'AD_20832_Ab_segmented';
+stain_fname.AD_20832.pt = 'AD_20832_AT8_segmented';
+stain_fname.AD_20969.ab = 'AD_20969_Ab_segmented';
+stain_fname.AD_20969.pt = 'AD_20969_AT8_segmented';
+stain_fname.AD_21354.ab = 'AD_21354_Ab_segmented';
+stain_fname.AD_21354.pt = 'AD_21354_AT8_segmented';
+stain_fname.AD_21424.ab = 'AD_21424_Ab_segmented';
+stain_fname.AD_21424.pt = 'AD_21424_AT8_segmented';
+stain_fname.CTE_6489.ab = 'CTE_6489_Ab_segmented';
+stain_fname.CTE_6489.pt = 'CTE_6489_AT8_segmented';
+stain_fname.CTE_6912.ab = 'CTE_6912_Ab_segmented';
+stain_fname.CTE_6912.pt = 'CTE_6912_AT8_segmented';
+stain_fname.CTE_7019.ab = 'CTE_7019_Ab_segmented';
+stain_fname.CTE_7019.pt = 'CTE_7019_AT8_segmented';
+stain_fname.CTE_7126.ab = 'CTE_7126_Ab_segmented';
+stain_fname.CTE_7126.pt = 'CTE_7126_AT8_segmented';
+stain_fname.NC_21499.ab = 'NC_21499_Ab_segmented';
+stain_fname.NC_21499.pt = 'NC_21499_AT8_segmented';
+stain_fname.NC_6839.ab = 'NC_6839_Ab_segmented';
+stain_fname.NC_6839.pt = 'NC_6839_AT8_segmented';
+stain_fname.NC_8095.ab = 'NC_8095_Ab_segmented';
+stain_fname.NC_8095.pt = 'NC_8095_AT8_segmented';
+% Filenames of each stain mask
+mask_fname.AD_10382.ab = 'AD_10382_slice_8_Ab_mask';
+mask_fname.AD_10382.pt = 'AD_10382_slice_14_AT8_mask';
+mask_fname.AD_20832.ab = 'AD_20832_slice_8_Ab_mask';
+mask_fname.AD_20832.pt = 'AD_20832_slice_14_AT8_mask';
+mask_fname.AD_20969.ab = 'AD_20969_Ab_mask';
+mask_fname.AD_20969.pt = 'AD_20969_AT8_mask';
+mask_fname.AD_21354.ab = 'AD_21354_slice_8_Ab_mask';
+mask_fname.AD_21354.pt = 'AD_21354_slice_2_AT8_mask';
+mask_fname.AD_21424.ab = 'AD_21424_slice_14_Ab_mask';
+mask_fname.AD_21424.pt = 'AD_21424_slice_20_AT8_mask';
+mask_fname.CTE_6489.ab = 'CTE_6489_slice_14_Ab_mask';
+mask_fname.CTE_6489.pt = 'CTE_6489_slice_8_AT8_mask';
+mask_fname.CTE_6912.ab = 'CTE_6912_slice_8_Ab_mask';
+mask_fname.CTE_6912.pt = 'CTE_6912_slice_14_AT8_mask';
+mask_fname.CTE_7019.ab = 'CTE_7019_slice_8_Ab_mask';
+mask_fname.CTE_7019.pt = 'CTE_7019_slice_14_AT8_mask';
+mask_fname.CTE_7126.ab = 'CTE_7126_slice_14_Ab_mask';
+mask_fname.CTE_7126.pt = 'CTE_7126_slice_8_AT8_mask';
+mask_fname.NC_21499.ab = 'NC_21499_slice_14_Ab_mask';
+mask_fname.NC_21499.pt = 'NC_21499_slice_8_AT8_mask';
+mask_fname.NC_6839.ab = 'NC_6839_Ab_mask';
+mask_fname.NC_6839.pt = 'NC_6839_AT8_mask';
+mask_fname.NC_8095.ab = 'NC_8095_slice_8_Ab_mask';
+mask_fname.NC_8095.pt = 'NC_8095_slice_2_AT8_mask';
+
 
 %% Subject ID list containing staining
 stain_subid = fieldnames(stain_fname);
@@ -151,27 +149,37 @@ for ii = 1:length(fields(stain_fname))
         % Filename of staining
         stain_name = stain_fname.(stain_subid{ii}).(stains{j});
         % Generate mask file name
-        mask_name = append(stain_fname.(stain_subid{ii}).(stains{j}),'_mask');
+        mask_name = mask_fname.(stain_subid{ii}).(stains{j});
         % Import the stain, mask, and calculate pxiel resolution
         [stain, mask, res] =...
             import_pathology(fpath, stain_name, mask_name);
         
         %%% generate heatmap from A-Beta staining
-        th = stain_thresh.(stain_subid{ii}).(stains{j});
-        [hm] = pathology_heatmap(res, cube_side, stain, th, mask);
+        [hm] = pathology_heatmap(res, path_cube_side, stain, mask);
 
         %%% Add heatmap of A-beta and p-tau to struct
         path_heatmap.(stain_subid{ii}).(stains{j}).heatmap = hm;
         path_heatmap.(stain_subid{ii}).(stains{j}).mask = mask;
+
+        %%% Identify maximum dimensions across all heatmaps
+        % Initialize the maximum values for x,y dimensions. These are used
+        % for scaling all of the heatmap figures such that they are all on
+        % the same scale.
+        % Initilize x-axis and y-axis max values
+        ymax = 1; xmax = 1;
+        sub = subid{ii};
+        % Identify the maximum dimensions of x,y
+        ymax = max([ymax,size(path_heatmap.(stain_subid{ii}).(stains{j}).mask,1)]);
+        xmax = max([xmax,size(path_heatmap.(stain_subid{ii}).(stains{j}).mask,2)]);
     end
 end
 
 % Save the heatmap
-fname = append('path_heatmap_',num2str(cube_side),'.mat');
+fname = append('path_heatmap_',num2str(path_cube_side),'.mat');
 fpath = fullfile(path_output_dir,fname);
 save(fpath,'path_heatmap','-v7.3');
 
-%% Plot and save the pathology heatmaps
+%% Save pathology heatmaps as TIFF and plot then save
 % This output is then co-registered to the respective depth in the OCT
 % volume in a different script. These co-registered images are used to
 % measure the correlation between the vascular metrics and the pathology.
@@ -180,27 +188,31 @@ save(fpath,'path_heatmap','-v7.3');
 for ii = 1:length(fields(stain_fname))
     for j = 1:length(stains)
         % Output filepath
-        fpath = fullfile(dpath, stain_subid{ii}, 'stain');
+        fpath = fullfile(path_output_dir, stain_subid{ii});
         % Load the tissue mask
         mask = path_heatmap.(stain_subid{ii}).(stains{j}).mask;
         % Load the heatmap
         hm = path_heatmap.(stain_subid{ii}).(stains{j}).heatmap;
-
         % Figure Name
-        stain_name = append(stain_fname.(stain_subid{ii}).(stains{j}),'_stain');
-        figname = append(stain_name,'_heatmap_',num2str(cube_side));
+        stain_name = append(stain_fname.(stain_subid{ii}).(stains{j}),...
+                            '_stain');
+        figname = append(stain_name,'_heatmap_',num2str(path_cube_side));
         title_str = append(stain_subid{ii},' ', tstr{j});
         % Save heatmap as a .TIFF (not as a figure)
         tiff_name = append(figname,'.tif');
         fout = fullfile(fpath, tiff_name);
         segmat2tif(hm,fout);
         % Plot heatmap
-        plot_save_heatmap(1,hm,0,[0,1],mask,title_str,'(a.u.)',fpath,figname)
+        plot_save_heatmap(1,hm,0,[0,1],[ymax,xmax],mask,title_str,...
+                          '(a.u.)',fpath,figname)
     end
 end
-%}
 
 %% Vascular heatmap: length density, branch density, volume fraction
+%%% Compute number of voxels in x,y,z for each cube
+n_x = floor(vasc_cube_side ./ vox(1));
+n_y = floor(vasc_cube_side ./ vox(2));
+n_z = floor(vasc_cube_side ./ vox(3));
 
 %%% Iterate over each subject
 for ii = 1:length(subid)
@@ -405,7 +417,7 @@ for ii = 1:length(subid)
 end
 
 % Save the heatmap struct
-heat_out = append('heatmap_ab_ptau_',num2str(cube_side),'.mat');
+heat_out = append('heatmap_ab_ptau_',num2str(vasc_cube_side),'.mat');
 heat_out = fullfile(mpath, heat_out);
 save(heat_out,'heatmap','-v7.3');
 
@@ -414,7 +426,7 @@ save(heat_out,'heatmap','-v7.3');
 % the colorbar across all subjects for this metric.
 
 % Load Heat map
-heat_out = append('heatmap_ab_ptau_',num2str(cube_side),'.mat');
+heat_out = append('heatmap_ab_ptau_',num2str(vasc_cube_side),'.mat');
 heat_out = fullfile(mpath, heat_out);
 heatmap = load(heat_out);
 heatmap = heatmap.heatmap;
@@ -480,7 +492,7 @@ for ii = 1:length(subid)
     heatmap_dm = heatmap.(sub).diam;
     masks = heatmap.(sub).mask;
 
-    %%% Rotate and transpose subjects so that they all align
+    %%% Transpose heatmaps to make 
     % Rotate subject AD_20969
     if strcmp(sub,'AD_20969')
         heatmap_vf = flip(permute(heatmap_vf,[2,1,3]),2);
@@ -498,9 +510,17 @@ for ii = 1:length(subid)
         heatmap_dm = flip(heatmap_dm,1);
         masks = flip(masks,1);
     end
+    if strcmp(sub,'CTE_6489')
+        heatmap_vf = imrotate(heatmap_vf,-15);
+        heatmap_ld = imrotate(heatmap_ld,-15);
+        heatmap_bd = imrotate(heatmap_bd,-15);
+        heatmap_tr = imrotate(heatmap_tr,-15);
+        heatmap_dm = imrotate(heatmap_dm,-15);
+        masks =      imrotate(masks,-15);
+    end
 
     %%% Output filepath for figures
-    roi_dir = strcat('AB_p-tau_ROI_',num2str(cube_side));
+    roi_dir = strcat('AB_p-tau_ROI_',num2str(vasc_cube_side));
     heatmap_dir = fullfile(mpath,'heatmaps',sub,roi_dir);
     if ~isfolder(heatmap_dir)
         mkdir(heatmap_dir);
@@ -556,6 +576,7 @@ function plot_save_heatmap(Ndepths, heatmaps, flip_cbar, colorbar_range,...
 %   heatmaps (double matrix): heatmaps of vascular metric
 %   flip_cbar (logical): reverse the direction of the colorbar
 %   colorbar_range (double array): [min, max]
+%   max_dim (double array): [ymax, xmax]
 %   masks (double): tissue mask (1=tissue, 0=other)
 %   tstr (string): figure title
 %   cbar_label (string): colorbar label
@@ -656,120 +677,8 @@ for d = 1:Ndepths
     % Save figure as PNG
     fout = fullfile(dpath, fout);
     pause(0.1)
+    box off;
     saveas(gca, fout,'png');
     close;
 end
-end
-
-%% Pathology heatmap
-function [hm] = pathology_heatmap(pix, square_side, stain, th, mask)
-%PATHOLOGY_HEATMAP generate heatmap with pathology
-% Divide the pathology stain into isotropic squares, calculate the density
-% of each square, add the density to a matrix.
-%
-% INPUTS:
-%   pix (double array): pixel size (x,y) (microns)
-%   square_side (uint): heatmap square dimension (microns)
-%   stain (uint8 matrix): pathology stain
-%   th (double): minimum threshold for segmenting AB or AT8 (after taking
-%               complement of the staining)
-%   mask (logical matrix): tissue mask for the pathology stain
-% OUTPUTS:
-%   hm (double matrix): masked heatmap of the pathology stain
-
-%%% Verify that the stained image is scaled between [0,1]
-% The inversion assumes that the image is scaled between [0,1], so this
-% will return the incorrect value otherwise.
-r = range(stain);
-assert(0<=min(r), 'The stained image is not scaled between [0,1]');
-assert(max(r)<=1, 'The stained image is not scaled between [0,1]');
-
-%%% Translate cube size to pixel size
-% Number of pixels in each dimension to create square
-nx = floor(square_side ./ pix(1));
-ny = floor(square_side ./ pix(2));
-
-%%% Complement image and segment plaques (minimum threshold)
-% Complement the image (you look nice, today)
-stain = imcomplement(stain);
-% Set pixels above background intensity equal to 1
-stain(stain > th) = 1;
-% Mask the stain to remove non-tissue pixels
-stain(~mask) = 0;
-% Set pixels < 1 equal to zero
-stain(stain ~= 1) = 0;
-
-%%% Generate heat map
-% Initialize heatmap matrices for A-beta and p-tau
-hm = zeros(size(stain,1), size(stain,2));
-% Iterate over rows
-for x = 1:nx:size(stain,1)
-    % Iterate over columns
-    for y = 1:ny:size(stain,2)
-        %%% Crop segmentation into isotropic square
-        % Initialize end indices for each axis
-        xf = x + nx - 1;
-        yf = y + ny - 1;
-        % Take minimum of matrix dimensions and end indices
-        xf = min(xf, size(stain,1));
-        yf = min(yf, size(stain,2));
-        % Take cube from segmentation
-        path_square = stain((x:xf), (y:yf));
-
-        %%% Calculate average plaque intensity in subvolume
-        hm((x:xf), (y:yf)) = mean(path_square(:));
-    end
-end
-
-% Mask the pathology heatmap with tissue mask
-hm(~mask) = 0;
-end
-
-%% Read TIFF and extract image properties
-function [stain, mask, res] = import_pathology(dpath, stain_name, mask_name)
-%IMPORT_PATHOLOGY read the TIF file for the pathology (A-beta or p-tau)
-% Retrieve TIFF metadata for the staining & compute the resolution of each
-% pixel. Then, load the TIFF and the respective tissue mask. Rescale the
-% staining to [0,1] to standardize across all images. Then, apply the
-% tissue mask.
-% INPUTS:
-%   dpath (string): directory path to the staining TIFF file
-%   stain_name (string): filename of staining TIFF file
-%   mask_name (string): filename of tissue mask TIFF file
-% OUTPUTS:
-%   stain (double matrix): masked staining, scaled between [0,1]
-%   mask (logical matrix): tissue mask for the pathology slide
-%   bg (double matrix): background patch for normalizing the pathology.
-%                       This is a region of the stain from the white matter
-%                       that does not include any plaques.
-%   res (double array): resolution of a pixel [x,y]
-
-%%% Disable Tiff read warnings for unknown tags
-id = 'imageio:tiffmexutils:libtiffWarning';
-warning('off',id);
-
-%%% Retrieve metadata and calculate resolution
-% Read staining TIFF info
-stain_file = append(stain_name, '.tif');
-stain_file = fullfile(dpath, stain_file);
-stain_metadata = imfinfo(stain_file);
-% X and Y resolution (pixels / micron)
-xres = stain_metadata.XResolution;
-yres = stain_metadata.YResolution;
-% Invert resolution (microns / pixel)
-xres = 1./xres;
-yres = 1./yres;
-res = [xres, yres];
-
-%%% Load TIFF file
-% Read staining TIFF (RGB) & convert to grayscale
-stain = Tiff(stain_file,'r');
-stain = read(stain);
-stain = rescale(stain, 0, 1);
-stain = rgb2gray(stain);
-% Load tissue mask
-mask_fname = append(mask_name, '.tif');
-mask_file = fullfile(dpath, mask_fname);
-mask = Tiff(mask_file,'r');
-mask = logical(read(mask));
 end

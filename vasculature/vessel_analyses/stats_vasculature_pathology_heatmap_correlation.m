@@ -1,4 +1,4 @@
-%% Measure correlation b/w pathology and vascular heatmap matrices
+%% Correlation pathology vs. vascular heatmap + Plot Registered Heatmap
 % Overview:
 %   - overlay the vascular heatmap with the registered pathology
 %   - iterate over the vascular heatmap ROIs (WM and GM separately)
@@ -66,13 +66,17 @@ fmat_pt_mask = 'AT8_path_mask_registered.mat';
 subs_mat = {'AD_10382','AD_21354','AD_21424','CTE_7019','CTE_7126',...
     'NC_8095'};
 
-%%% Subvolume parameters
+%%% Subvolume parameters for analyses
 % Isotropic cube length (microns)
 cube_side = 1000;
 % Size of each OCT voxel (microns)
 vox = [12, 12, 15];
 % Whether to plot non-normalized heatmaps for each depth
 viz_individual = false;
+% Pathology isotropic cube side length (microns) 
+path_cube_side = 204;
+% Pixel size of pathology
+res = [10.9731, 10.9731];
 
 %%% Compute number of voxels in x,y,z for each cube
 n_x = floor(cube_side ./ vox(1));
@@ -92,7 +96,12 @@ midx = {'gm','wm'};
 %%% Struct for storing pairs of values (heatmap, pathology)
 pairs = struct();
 
-%% Spearman's Rho Correlation Coefficient b/w pathology & vasculature
+%%% label cell array
+xlabels = {'Volume Fraction (unitless)','Branch Density (mm^-^3)',...
+    'Length Density (mm / mm^3)','Tortuosity (unitless)'};
+ylabels = {'[A-beta]','[p-tau]'};
+
+%% Spearman's Rho pathology vs. vasculature + Heatmap
 % Load the vascular heatmap and pathology heatmaps, recreate the ROIs from
 % the vascular heatmaps, generate an x-y pair for each ROI (x = vascular
 % ROI, y = pathology ROI), perform Spearman's on the matrix pairs for each
@@ -125,6 +134,7 @@ for ii = 1:length(subid)
         pt_mask = logical(pt_mask.path_mask_registered);
     end
 
+    %% Add to struct
     % Retrieve the vascular heatmaps/masks from the "hm" struct
     vasc = hm.(sub);
     masks = struct();
@@ -142,6 +152,7 @@ for ii = 1:length(subid)
     path.pt.mask = pt_mask;
     path.ab.hm = ab;
     path.pt.hm = pt;
+
 
     
     %% Iterate over the pathology stains
@@ -189,9 +200,14 @@ for ii = 1:length(subid)
                         ld_tmp = min(hm_ld((x:xf), (y:yf),j),[],"all");
                         tr_tmp = min(hm_tr((x:xf), (y:yf),j),[],"all");
                         dm_tmp = min(hm_dm((x:xf), (y:yf),j),[],"all");
+                        % Set minimum tortuosity == 1
+                        tr_tmp = max([tr_tmp,1]);
                         
-                        % Take average pathology value within ROI
-                        path_tmp = mean(hm_path((x:xf), (y:yf)),'all');
+                        %%% Take average pathology value within ROI, just
+                        %%% with the masked region
+                        hm_path_roi = hm_path((x:xf), (y:yf));
+                        hm_mask_roi = logical(mask((x:xf), (y:yf)));
+                        path_tmp = mean(hm_path_roi(hm_mask_roi),'all');
     
                         % Create x-y pair for each metric
                         vf_pairs(idx,:) = [vf_tmp, path_tmp];
@@ -208,11 +224,11 @@ for ii = 1:length(subid)
                 end
             end
             % Retain pairs up to the index
-            pairs.(sub).(midx{k}).(pidx{j}).vf = vf_pairs(1:idx,:);
-            pairs.(sub).(midx{k}).(pidx{j}).bd = bd_pairs(1:idx,:);
-            pairs.(sub).(midx{k}).(pidx{j}).ld = ld_pairs(1:idx,:);
-            pairs.(sub).(midx{k}).(pidx{j}).tr = tr_pairs(1:idx,:);
-            pairs.(sub).(midx{k}).(pidx{j}).dm = dm_pairs(1:idx,:);
+            pairs.(sub).(midx{k}).(pidx{j}).vf = vf_pairs(1:(idx-1),:);
+            pairs.(sub).(midx{k}).(pidx{j}).bd = bd_pairs(1:(idx-1),:);
+            pairs.(sub).(midx{k}).(pidx{j}).ld = ld_pairs(1:(idx-1),:);
+            pairs.(sub).(midx{k}).(pidx{j}).tr = tr_pairs(1:(idx-1),:);
+            pairs.(sub).(midx{k}).(pidx{j}).dm = dm_pairs(1:(idx-1),:);
         end
     end
     sprintf('Finished subject %s\n',sub)
@@ -361,6 +377,202 @@ table_out = fullfile(mpath, 'p_value_spearmans.xls');
 writetable(gm_table, table_out, 'Sheet', 'gm_combined');
 writetable(wm_table, table_out, 'Sheet', 'wm_combined');
 
+%% Fig. 4: Scatter plot pathology vs. vasculature (combine subjects)
+% Combine all subjects within a group for each vascular metric
+% Only examine the gray matter (most dense pathology).
+% Create three types of plots:
+%   - Plot each subject as different color (separate plot for each group)
+%   - Plot each group as different color (separate plot for each metric)
+%   - Mean pathology vs. Mean vascular metric (color for each group)
+
+%%% Graphing labels
+% Vascular Metrics
+vmets = {'vf','bd','ld','tr'};
+
+%%% Subject names for each group
+% Subjects within groups
+ad = {'AD_10382','AD_20832','AD_20969','AD_21354','AD_21424'};
+cte = {'CTE_6489','CTE_6912','CTE_7019','CTE_7126'};
+hc = {'NC_6839','NC_8095','NC_21499'};
+% Combine subject IDs into group
+gname = {'ad','cte','hc'};
+groups.ad = ad; groups.cte = cte; groups.hc = hc;
+
+%%% Create struct combining all subjects within group
+% store the values of both the path & vascular metric
+pgroup = struct();
+% store the number of values for this subject
+sidcs = struct();
+% Store the average of each subject
+savg = struct();
+% Iterate over vascular metrics
+for vm = 1:length(vmets)
+    % iterate over pathology (A-beta and p-tau)
+    for p = 1:length(pidx)
+        % Iterate over groups
+        for g = 1 : length(fields(groups))
+            % Initialize array for storing all values within group
+            combined = [];
+            % Initialize array for storing N entries in group
+            nidcs = [];
+            % Retrieve subject IDs within group
+            subs = groups.(gname{g});
+            % Iterate over subjects within group
+            for j = 1 : length(groups.(gname{g}))
+                % Retrieve GM & WM values for subject
+                gm = pairs.(subs{j}).gm.(pidx{p}).(vmets{vm});
+                wm = pairs.(subs{j}).wm.(pidx{p}).(vmets{vm});
+                % Combine all values within group
+                combined = [combined; gm];
+                % Track number of indices for subject
+                nidcs = [nidcs; size(gm,1)];
+                % Take average value of path & vasculature for subject
+                savg.(pidx{p}).gm.(vmets{vm}).(subs{j}) = mean(gm,1);
+                savg.(pidx{p}).wm.(vmets{vm}).(subs{j}) = mean(wm,1);
+            end
+            % Place tmp array into struct
+            pgroup.(gname{g}).(pidx{p}).(vmets{vm}) = combined;
+            % Store number of indices belonging to this subject
+            sidcs.(gname{g}).(pidx{p}).(vmets{vm}) = nidcs;
+        end
+    end
+end
+
+%% Figure: mean GM pathology vs. mean WM vascular metric
+% The pairs are [vasculature, pathology] in "savg" struct
+% NOTE: The indexing array is hard coded for simplicity
+nidcs = [5; 4; 3];
+
+% Iterate over pathology
+for p=1:length(pidx)
+    % Iterate over vascular metrics
+    for vm=1:length(vmets)
+        % Initialize array to store all values for metric
+        combined = [];
+        % Iterate over subjects and combine into array
+        for g = 1 : length(subid)
+            % Extract pathology from GM
+            patho = savg.(pidx{p}).gm.(vmets{vm}).(subid{g});
+            patho = patho(2);
+            % Extract respective vasculature from WM
+            vasc = savg.(pidx{p}).wm.(vmets{vm}).(subid{g});
+            vasc = vasc(1);
+            % Create the set of vasculature + pathology
+            set = [vasc, patho];
+            % Place into single array
+            combined = [combined; set];
+        end
+        % Set the x-axis label (vascular metrics)
+        xl = xlabels{vm};
+        % Set the y-axis label (pathology)
+        yl = ylabels{p};
+        % Set title string
+        tstr = append('Mean GM Pathology vs. Mean WM Vascular Metric ',...
+                      pidx{p},' ',vmets{vm});
+        % Set the filename
+        fname = append('subject_mean_gm_path_vs_mean_wm_vasc_',...
+                        pidx{p},'_',vmets{vm},'_scatter.png');
+        % Call function to plot
+        path_group_plot(combined,nidcs,tstr,xl,yl,fields(groups),...
+                path_reg,'combined',fname,100)
+    end
+end
+
+%% Figure for each group, pathology, vascular metric
+% Scatterplot of all ROIs within each subject in each group
+
+% Iterate over groups
+for g = 1 : length(fields(groups))
+    % Iterate over pathologies
+    for p=1:length(pidx)
+        % Iterate over vascular metrics
+        for vm=1:length(vmets)
+            % Extract the pair values
+            set = pgroup.(gname{g}).(pidx{p}).(vmets{vm});
+            % Extract the subject indices within matrix
+            nidcs = sidcs.(gname{g}).(pidx{p}).(vmets{vm});
+            % Set the x-axis label (vascular metrics)
+            xl = xlabels{vm};
+            % Set the y-axis label (pathology)
+            yl = ylabels{p};
+            % Set title string
+            tstr = append(gname{g},' GM ',pidx{p},' ',vmets{vm});
+            % Set the filename
+            fname = append(gname{g},'_gm_',pidx{p},'_',vmets{vm},...
+                            '_scatter.png');
+            % Call plotting function
+            path_group_plot(set,nidcs,tstr,xl,yl,groups.(gname{g}),...
+                path_reg,gname{g},fname,50)
+        end
+    end
+end
+
+%% Create figure comparing groups (combine subjects within same group)
+% Use different colors for different groups
+% Iterate over pathologies
+for p=1:length(pidx)
+    % Iterate over vascular metrics
+    for vm=1:length(vmets)
+        % Initialize array to store 
+        combined = [];
+        % Counter for number of indices
+        nidcs = zeros(length(fields(groups)),1);
+        % Iterate over groups
+        for g = 1 : length(fields(groups))
+            % Extract the pair values
+            set = pgroup.(gname{g}).(pidx{p}).(vmets{vm});
+            % Place into single array
+            combined = [combined; set];
+            % Count the number of indices in each group
+            nidcs(g) = size(set,1);
+        end
+        % Set the x-axis label (vascular metrics)
+        xl = xlabels{vm};
+        % Set the y-axis label (pathology)
+        yl = ylabels{p};
+        % Set title string
+        tstr = append('GM ',pidx{p},' ',vmets{vm});
+        % Set the filename
+        fname = append('group_comparison_gm_',pidx{p},'_',vmets{vm},...
+                        '_scatter.png');
+        % Call function to plot
+        path_group_plot(combined,nidcs,tstr,xl,yl,fields(groups),...
+                path_reg,'combined',fname,50)
+    end
+end
+
+%% Plot the GM mean pathology vs. GM mean vascular metric
+% NOTE: The indexing array is hard coded for simplicity
+nidcs = [5; 4; 3];
+
+% Iterate over pathology
+for p=1:length(pidx)
+    % Iterate over vascular metrics
+    for vm=1:length(vmets)
+        % Initialize array to store all values for metric
+        combined = [];
+        % Iterate over subjects and combine into array
+        for g = 1 : length(subid)
+            % Extract the pair of values from single subject
+            set = savg.(pidx{p}).gm.(vmets{vm}).(subid{g});
+            % Place into single array
+            combined = [combined; set];
+        end
+        % Set the x-axis label (vascular metrics)
+        xl = xlabels{vm};
+        % Set the y-axis label (pathology)
+        yl = ylabels{p};
+        % Set title string
+        tstr = append('GM Subject Mean ',pidx{p},' ',vmets{vm});
+        % Set the filename
+        fname = append('subject_mean_gm_',pidx{p},'_',vmets{vm},...
+                        '_scatter.png');
+        % Call function to plot
+        path_group_plot(combined,nidcs,tstr,xl,yl,fields(groups),...
+                path_reg,'combined',fname,100)
+    end
+end
+
 %% Fig. 4: Scatter plot of pathology vs. vasculature
 % The struct "pairs" contains a matrix of [x,y] pairs for each subject,
 % pathology, and vascular metric (i.e. pairs.[sub].[ab/pt].[vf/bd/ld])
@@ -368,12 +580,18 @@ writetable(wm_table, table_out, 'Sheet', 'wm_combined');
 % second column is the pathology (y-axis) within the same ROI.
 
 % Vascular Metrics
-vmets = {'vf','bd','ld','tr','dm'};
+vmets = {'vf','bd','ld','tr'};
 
-% X-label cell array
-xlabels = {'Volume Fraction (a.u.)','Branch Density','Length Density',...
-    'Tortuosity','Diameter'};
-ylabels = {'[A-beta] (a.u.)','[p-tau] (a.u.)'};
+% axis limits for each vascular metric
+xlims.vf = [0, 0.03];
+xlims.ld = [0, 8];
+xlims.bd = [0, 120];
+xlims.tr = [1, 1.4];
+% axis limit for pathology (same for all plots)
+ylims = [0,1];
+% x-axis labels for vascular metrics
+xlabels = {'Volume Fraction (unitless)','Branch Density (mm^-^3)',...
+    'Length Density (mm^-^2)','Tortuosity (unitless)'};
 
 % Iterate over subject IDs
 for ii = 1:length(subid)
@@ -390,80 +608,65 @@ for ii = 1:length(subid)
                 % Set the y-axis label (pathology)
                 yl = ylabels{j};
                 % Set title string
-                tstr = append(subid{ii},' ',midx{m},' ',pidx{j},' ',vmets{k});
+                tstr = append(subid{ii},' ',midx{m},' ',pidx{j},' ',...
+                                vmets{k});
                 % Set the filename
-                fname = append(subid{ii},'_',midx{m},'_',pidx{j},'_',vmets{k},'_scatter.png');
+                fname = append(subid{ii},'_',midx{m},'_',pidx{j},'_',...
+                                vmets{k},'_scatter.png');
                 % Call plotting function
-                lin_reg_plot(pair,subid{ii},tstr,xl,yl,path_reg,fname)
+                path_vasc_scatter(pair,subid{ii},tstr,...
+                    xlims.(vmets{k}),ylims,xl,yl,path_reg,fname)
             end
         end
     end
 end
 
-%% Fig. 4: Generate figure of registered pathology heatmap 
-% Figure for the manuscript of the AD/CTE/HC vasculature study
-% A subset of samples were registered with the automated demons method, and
-% the output was a .MAT file. The rest required a manual landmark method to
-% register, and the output was a .TIF. This section will handle each case.
-%
-% Automated (.MAT): AD_10382, AD_21354, AD_21424, CTE_7019, CTE_7126
-% Manual (.TIF): AD_20832, AD_20969, CTE_6489, CTE_6912, NC_8095, NC_6839,
-%               NC_21499
-% TODO:
-%   - rotate the heatmaps that are at an angle so that gyri are on top
+%% Spearman's rho for averages (combine samples from all groups)
+% Use the data struct (savg), which contains the average vascular metric
+% and pathology for each subject. For a given pair of vascular metric and
+% pathology (eg. A-beta vs. Volume fraction), create a matrix containing
+% the average of all subjects across all groups (AD, CTE, HC). Then,
+% measure the Spearman's rho for this group.
 
-%%% Initialize filenames (excluding AB or AT8 prefix)
-% Data path to registered mask and pathology
-reg_path = ['/projectnb/npbssmic/ns/Ann_Mckee_samples_55T/metrics/' ...
-        'gsigma_1-3-5_2-3-4_3-5-7_5-7-9_7-9-11/p18/heatmaps/' ...
-        'heatmaps_pathology_registration'];
-% Filename prefix for amyloid beta and AT8
-pidx = {'Ab','AT8'};
-% Subject list registered with automated demons
-automated = {'AD_10382', 'AD_21354', 'AD_21424', 'CTE_7019', 'CTE_7126',...
-             'NC_8095'};
-
-%%% Load heatmaps and masks and make figures
-% Iterate over subject IDs
-for ii = 1:length(subid)
-    % Iterate over pathologies
-    for j=1:length(pidx)
-        %%% Load file, depending on registration method
-        % Check if automated registration method used (.MAT)
-        if any(contains(automated, subid{ii}))
-            % Define filenames
-            mask = append(subid{ii},'_',pidx{j},'_path_mask_registered.mat');
-            path = append(subid{ii},'_',pidx{j},'_path_registered.mat');
-            % Load the registered pathology tissue mask
-            mask = load(fullfile(reg_path,subid{ii},mask));
-            mask = mask.path_mask_registered;
-            % Load the registered pathology heatmap
-            path = load(fullfile(reg_path,subid{ii},path));
-            path = path.path_registered;
-        % Manual landmark method (.TIF)
-        else
-            % Define filenames
-            mask = append(pidx{j},'_mask_registered.tif');
-            path = append(pidx{j},'_registered.tif');
-            % Load the registered pathology tissue mask
-            mask = TIFF2MAT(fullfile(reg_path,subid{ii},mask));
-            path = TIFF2MAT(fullfile(reg_path,subid{ii},path));
-            % Take one depth from stack
-            mask = mask(:,:,1);
-            path = path(:,:,1);
-        end
-
-        %%% Initialize the title and output filenames
-        % Output path
-        fpath = fullfile(reg_path,subid{ii});
-        % Figure Name
-        figname = append(subid{ii},'_',pidx{j},'_path_registered.png');
-        title_str = append(subid{ii},' ',pidx{j});
-        % Plot heatmap
-        plot_save_heatmap(1,path,0,[0,256],mask,title_str,'(a.u.)',...
-                         fpath,figname)
+%%% Gray matter pathology vs. vascular metric
+% Iterate pathology
+for ii = 1:length(pidx)
+    % Iterate vascular metric
+    for j = 1:length(vmets)
+        % Combine all subjects into single array
+        combined = struct2cell(savg.(pidx{ii}).gm.(vmets{j}));
+        combined = vertcat(combined{:});
+        vasc = combined(:,1);
+        patho = combined(:,2);
+        % Measure spearman's rho
+        [rho, p] = corr(vasc, patho,'type','Spearman');
+        % Add to struct
+        spear.gm.(pidx{ii}).(vmets{j}) = [rho, p];
     end
 end
+
+%%% Gray matter pathology vs. white matter vascular metric
+% Iterate pathology
+for ii = 1:length(pidx)
+    % Iterate vascular metric
+    for j = 1:length(vmets)
+        %%% Matrix of GM pathology
+        combined = struct2cell(savg.(pidx{ii}).gm.(vmets{j}));
+        combined = vertcat(combined{:});
+        patho = combined(:,2);
+        
+        %%% Matrix of WM vascular metric
+        combined = struct2cell(savg.(pidx{ii}).wm.(vmets{j}));
+        combined = vertcat(combined{:});
+        vasc = combined(:,1);
+
+        % Measure spearman's rho
+        [rho, p] = corr(vasc, patho,'type','Spearman');
+        % Add to struct
+        spear.gm_wm.(pidx{ii}).(vmets{j}) = [rho, p];
+    end
+end
+
 
 %% Plot and save the heat maps
 function plot_save_heatmap(Ndepths, heatmaps, flip_cbar, colorbar_range,...
@@ -493,7 +696,7 @@ fontsize = 40;
 for d = 1:Ndepths
     %%% Heatmap of j_th frame from the length density
     fh = figure();
-    fh.WindowState = 'maximized';
+%     fh.WindowState = 'maximized';
     % If there are multiple heatmaps in the matrix
     if size(heatmaps,3) > 1
         heatmap = heatmaps(:,:,d);
@@ -551,6 +754,8 @@ for d = 1:Ndepths
     % Remove x and y tick labels
     set(gca,'Yticklabel',[]);
     set(gca,'Xticklabel',[]);
+    % Remove the boundary box
+    box off;
     
     %%% Save figure as PNG
     % If there are multiple heatmaps in the matrix, save vascular heatmap
@@ -566,14 +771,81 @@ for d = 1:Ndepths
     end
     % Save figure as PNG
     fout = fullfile(dpath, fout);
-    pause(0.1)
+    pause(1)
     saveas(gca, fout,'png');
     close;
 end
 end
 
+%% Scatterplot of path vs. vasc (combined subjects)
+% Plot a different color for each subject
+function path_group_plot(pair,nidcs,tstr,xl,yl,subid,dpath,...
+                         gname,fname,marker_size)
+% PATH_GROUP_PLOT scatterplot path vs. vasc metric
+% INPUT
+%   pair (double matrix [x,2]): ROI pairs,
+%                               column 1 = vasculature
+%                               column 2 = pathology
+%   nidcs (array): row indices for each subject within pair matrix. In the
+%       case of plotting different groups, this could also be number of
+%       data points for each group.
+%   tstr (string): figure title
+%   xl (string): xlabel string
+%   yl (string): ylabel string
+%   subid (cell array): cell array of subject ID strings
+%   dpath (string): data dicrectory path
+%   fname (string): name of figure to save
+%   marker_size (uint8): marker size of scatter plot
+
+%%% Initialize Color Arrays
+% Set the color for subsequent plots
+pcolors = [1 0 0 ; 1.00 0.54 0.00; 0.47 0.25 0.80;
+             0.25 0.80 0.54; 0 0 0];
+% Set the plotting order
+colororder(pcolors);
+
+%%% Rescale the pathology to [0,1]
+pair(:,2) = rescale(pair(:,2),'InputMin',0,'InputMax',255);
+
+%%% Create scatter plot
+% Initialize figure
+fh = figure();
+set(fh,'Units','normalized','OuterPosition',[0, 0.04,1,1])
+% Counter to track the array index for each subject
+cnt = 0;
+for ii = 1 : length(nidcs)
+    % Retrieve vasculature and pathology values
+    x = pair(cnt+1 : (cnt+nidcs(ii)),1);
+    y = pair(cnt+1 : (cnt+nidcs(ii)),2);
+    % Plot with specific color
+    scatter(x,y,marker_size,pcolors(ii,:),'filled','o');
+    hold on;
+    % Increment the counter
+    cnt = cnt + nidcs(ii);
+end
+
+%%% Adjust figure parameters
+% Axis limits, labels, etc.
+ylim([0,max(pair(:,2))+0.01]);
+xlabel(xl);
+ylabel(yl);
+set(gca,'FontSize',25);
+title(tstr)
+% l = legend(subid);
+% set(l,'Interpreter','none')
+% l.Position = 'Best';
+
+% Save the figure
+fout = fullfile(dpath,gname,fname);
+pause(1.0);
+saveas(gcf,fout,'png');
+close;
+
+end
+
+
 %% Scatterplot of the pathology vs. vasculature
-function lin_reg_plot(pair,sub,tstr,xl,yl,dpath,fname)
+function path_vasc_scatter(pair,sub,tstr,xlims,ylims,xstr,ystr,dpath,fname)
 % LIN_REG_PLOT scatterplot of pathology vs. vasculature
 % INPUT
 %   pair (double matrix [x,2]): ROI pairs,
@@ -581,6 +853,8 @@ function lin_reg_plot(pair,sub,tstr,xl,yl,dpath,fname)
 %                               column 2 = pathology
 %   sub (string): subject ID
 %   tstr (string): figure title
+%   xlims (vector): x-axis limits [lower, upper]
+%   ylims (vector): y-axis limits [lower, upper]
 %   xl (string): xlabel string
 %   yl (string): ylabel string
 %   dpath (string): data dicrectory path
@@ -592,19 +866,22 @@ x = pair(:,1);
 y = pair(:,2);
 % Rescale Pathology from uint8 to [0,1]
 y = rescale(y,0,1,'InputMin',0,'InputMax',255);
-% Fit linear regression and plot
-fh = figure(); fh.WindowState = 'maximized';
-scatter(x,y,50,'k','filled','o');
-% Axis limits, labels, etc.
-ylim([0,max(y)]);
-xlabel(xl);
-ylabel(yl);
+% Create figure and scatter plot
+fh = figure();
+set(fh,'Position',[1093 5 1047 906]);
+scatter(x,y,100,'k','filled','o');
+% Axis limits
+xlim([xlims(1),xlims(2)]);
+ylim([ylims(1),ylims(2)]);
+% Axis labels
+xlabel(xstr);
+ylabel(ystr);
 set(gca,'FontSize',50);
-title(tstr)
+% title(tstr)
 legend('hide')
 % Save the figure
 fout = fullfile(dpath,sub,fname);
-pause(0.1)
+pause(1.0)
 saveas(gcf,fout,'png');
 close;
 

@@ -1,4 +1,4 @@
-%% Measure covariance between age and vascular metrics
+%% Measure covariance between age and average vascular metrics
 % The purpose is to determine whether there is a covariance between each of
 % the vascular metrics and the age of the tissue donors. This is to
 % determine whether the age range of each group impacts the statistical
@@ -25,7 +25,7 @@ subid = {'AD_10382', 'AD_20832', 'AD_20969', 'AD_21354', 'AD_21424',...
          'NC_6839',  'NC_6974',  'NC_8653',  'NC_21499', 'NC_301181'};
 ad_subs = {'AD_10382', 'AD_20832', 'AD_20969', 'AD_21354', 'AD_21424'};
 cte_subs = {'CTE_6489', 'CTE_6912', 'CTE_7019', 'CTE_7126'};
-nc_subs = {'NC_6839',  'NC_6974',  'NC_8653',  'NC_21499', 'NC_301181'};
+nc_subs = {'NC_8095','NC_6839','NC_6974','NC_8653','NC_21499'};
 
 
 %% Import the vascular metrics

@@ -279,6 +279,10 @@ for d = 1:Ndepths
     c.Label.Rotation = 270;
     % Increase fontsize of colorbar
     c.FontSize = 20;
+    % Remove x,y tick labels and border around image
+    set(gca,'Yticklabel',[]);
+    set(gca,'Xticklabel',[]);
+    set(gca,'visible','off')
     
     %%% Save figure as PNG
     % If there are multiple heatmaps in the matrix, save vascular heatmap
@@ -294,8 +298,8 @@ for d = 1:Ndepths
     end
     % Save figure as PNG
     fout = fullfile(dpath, fout);
+    pause(0.5)
     saveas(gca, fout,'png');
-    pause(0.1)
     close;
 end
 end

@@ -156,6 +156,7 @@ addParameter(p,'tOrder', [], validStrs);
 addParameter(p,'yTitle', yCol, validName);
 addParameter(p,'showPnt', true, validLogical);
 addParameter(p,'showBox', true, validLogical);
+addParameter(p,'showMedBox', false, validLogical);
 addParameter(p,'showVln', false, validLogical);
 addParameter(p,'showOutlier', false, validLogical);
 addParameter(p,'showXLine', false, validLogical);
@@ -181,6 +182,7 @@ addParameter(p,'vlnAlpha', 0.5, validPosFrc);
 addParameter(p,'showMean', true, validLogical);
 addParameter(p,'log',true,validLogical);
 addParameter(p,'jitter',false,validLogical);
+addParameter(p,'xLvls',{},validStrs);
 
 % Parse input
 parse(p,data,yCol,varargin{:});
@@ -197,6 +199,7 @@ xOrder = p.Results.xOrder;
 cOrder = p.Results.cOrder;
 tOrder = p.Results.tOrder;
 showPnt = p.Results.showPnt;
+showMedBox = p.Results.showMedBox;
 showBox = p.Results.showBox;
 showVln = p.Results.showVln;
 showOutlier = p.Results.showOutlier;
@@ -223,6 +226,7 @@ vlnAlpha = p.Results.vlnAlpha;
 showMean = p.Results.showMean;
 log = p.Results.log;
 jitter = p.Results.jitter;
+xLvls = p.Results.xLvls;
 
 %% 2. Data preprocessing
 
@@ -243,19 +247,27 @@ for i = 1:3
 end
 
 %--------------------------------------------------------------------------
-% Get factor levels (i.e. categories) and number of levels
-nXLvl = 1;  % If xFactor is not provided, put all datapoints in one group.
-xLvls = 'X';  % If xFactor is not provided, put all datapoints in one group.
-if ~isempty(xFactor)
-    xLvls = categories(data.(xFactor));
-    nXLvl = length(xLvls);
+%%% Get factor levels (i.e. categories) and number of levels
+
+% If xLvls are undefined, then sort automatically from xFactor
+if isempty(xLvls)
+    nXLvl = 1;  % If xFactor is not provided, put all datapoints in one group.
+    xLvls = 'X'; 
+    if ~isempty(xFactor)
+        xLvls = categories(data.(xFactor));
+    end
 end
-nTLvl = 1;  % default
+nXLvl = length(xLvls);
+
+% T levels
+nTLvl = 1;
 if ~isempty(tFactor)
     tLvls = categories(data.(tFactor));
     nTLvl = length(tLvls);
 end
-nCLvl = 1;  % default
+
+% Color levels
+nCLvl = 1;
 if ~isempty(cFactor)
     cLvls = categories(data.(cFactor));
     nCLvl = length(cLvls);
@@ -468,6 +480,51 @@ for i = 1:nTLvl
             end
         end
 
+        % Create box plot without whiskers---------------------------------
+        if showMedBox == true
+            % Identify x-axis offset for each unique entry
+            groups = unique(xPos);
+            % Set variable for the minimum / maximum y-axis values
+            ymin = 0;
+            ymax = 0;
+
+            %%% Iterate through xPos - find the respective y elements
+            for g = 1 : length(groups)
+                %%% Calculate rectangle dimensions
+                % Extract elements at g'th x-axis position
+                y_subset = y(xPos == groups(g));
+                % Calculate height of rectangle
+                h = mean(y_subset(:));
+                % Set y-axis position of lower-left corner of box
+                y_corn = 0;
+                % Set x-axis position of lower-left corner of box
+                x_corn = groups(g) - w/2;
+
+                %%% Identify min and max y-axis values
+                ymin = min(ymin, min(y_subset(:)));
+                ymax = max(ymax, max(y_subset(:)));
+                
+                %%% Add Box (without whiskers)
+                rectangle('Position',[x_corn, y_corn, w, h],'FaceColor',...
+                    cmap(j,:),'EdgeColor',cmap(j,:),'LineWidth',5);
+                pntObj(i,j) = swarmchart(xPos, y, 40,...
+                                     MarkerFaceColor='k', ...
+                                     MarkerEdgeColor='k', ...
+                                     MarkerFaceAlpha=pntAlpha);
+                %%% Configure swarm chart
+                % If jitter is false, then set to zero
+                if ~jitter
+                    pntObj(i,j).XJitter = 'none';
+                else
+                    pntObj(i,j).XJitterWidth= w;
+                end
+                pntObj(i,j).SizeData = pntSize;
+            end            
+
+            %%% Set the y-axis parameters
+            ylim([ymin, ymax]);
+        end
+
         % Show raw data points on top of other objects---------------------
         if showPnt == true && pntOnTop == true
             pntObj(i,j) = swarmchart(xPos, y, 40,...
@@ -484,7 +541,7 @@ for i = 1:nTLvl
             pntObj(i,j).SizeData = pntSize;
             % Fill points
             if ~isempty(pntFillC)
-                pntObj(i,j).MarkerFaceColor = pntFillC
+                pntObj(i,j).MarkerFaceColor = pntFillC;
             end
             
             %%% Add horizontal line for mean of each x-axis grouping
@@ -505,6 +562,7 @@ for i = 1:nTLvl
                 end
             end
         end
+
 
         % Show n number----------------------------------------------------
         if showNum == true
