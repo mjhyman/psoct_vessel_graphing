@@ -396,6 +396,8 @@ alpha = 0.05;
 % Calculate stats
 hm_stats = calc_heatmap_stats(hm, regions, hm_params, subids, alpha,...
                              mpath, ptable_out_heatmap);
+stats_fout = fullfile(mpath, 'heatmap_lme_stats.mat');
+save(stats_fout, 'hm_stats','-v7.3');
 
 %% Fig. 3: Statistical Hypothesis Testing (average for each region)
 % Kruskal-Wallis

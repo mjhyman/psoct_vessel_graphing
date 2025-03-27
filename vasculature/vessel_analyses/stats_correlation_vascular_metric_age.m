@@ -22,7 +22,7 @@ addpath(genpath(topdir));
 % IDs of each subject
 subid = {'AD_10382', 'AD_20832', 'AD_20969', 'AD_21354', 'AD_21424',...
          'CTE_6489', 'CTE_6912', 'CTE_7019', 'CTE_7126',...
-         'NC_6839',  'NC_6974',  'NC_8653',  'NC_21499', 'NC_301181'};
+         'NC_8095','NC_6839','NC_6974','NC_8653','NC_21499'};
 ad_subs = {'AD_10382', 'AD_20832', 'AD_20969', 'AD_21354', 'AD_21424'};
 cte_subs = {'CTE_6489', 'CTE_6912', 'CTE_7019', 'CTE_7126'};
 nc_subs = {'NC_8095','NC_6839','NC_6974','NC_8653','NC_21499'};
@@ -47,8 +47,125 @@ mets = {'ld','bd','vf','tort'};
 % Regions
 regions = {'tiss','wm','gm','sulci','gyri','gm_sulci','wm_sulci',...
     'gm_gyri','wm_gyri'};
+% Add age to AD group
+hm.AD_10382.age = 84;
+hm.AD_20832.age = 87;
+hm.AD_20969.age = 83;
+hm.AD_21354.age = 76;
+hm.AD_21424.age = 86;
+% Add sex to AD group
+hm.AD_10382.sex = 'f';
+hm.AD_20832.sex = 'm';
+hm.AD_20969.sex = 'f';
+hm.AD_21354.sex = 'm';
+hm.AD_21424.sex = 'm';
+% Add age to CTE group
+hm.CTE_6489.age = 75;
+hm.CTE_6912.age = 78;
+hm.CTE_7019.age = 86;
+hm.CTE_7126.age = 81;
+% Add age to HC group
+hm.NC_8095.age = 67;
+hm.NC_6839.age = 71;
+hm.NC_6974.age = 73;
+hm.NC_8653.age = 80;
+hm.NC_21499.age = 88;
+
+%% LMM Sex and Age vs. Vascular metric in AD
+% Create LMM model to measure fixed effects of sex and age
+% Iterate over each metric and region
+% Test each group separately (AD, CTE, HC)
+% TODO: update table creation for each group
+
+for ii = 1:length(regions)
+    for j=1:length(mets)
+        %%% Retrieve region and parameter
+        region = regions{ii};
+        param = mets{j};
+
+        %%% Create column vector of subject IDs for each group
+        % Initialize counter for N values per group
+        nval_ad = 0;
+        nval_cte = 0;
+        nval_nc = 0;
+        % Initialize counter for number of values per subject
+        nval = zeros(length(subid),1);
+        % Iterate over subjects
+        for s = 1:length(subid)
+            % Count number of values in array
+            tmp = hm.(subid{s}).(region).(param);
+            nval(s) = length(tmp);
+            % Add N values to the respective group list
+            if contains(subid(s), 'AD_')
+                nval_ad = nval_ad + nval(s);
+            elseif contains(subid(s), 'CTE_')
+                nval_cte = nval_cte + nval(s);
+            elseif contains(subid(s), 'NC_')
+                nval_nc = nval_nc + nval(s);
+            end
+        end
+        
+        %%% Create table for AD (Table: patch, age, sex, subID)
+        patch_array = []; age_array = []; sex_array = [];
+        subID = {};
+        for k = 1:length(ad_subs)
+            % Retrieve patch, age, sex
+            patch = hm.(ad_subs{k}).(region).(param);
+            age = hm.(ad_subs{k}).age;
+            age = repmat(age,size(patch));
+            sex = hm.(ad_subs{k}).sex;
+            sex = repmat(sex,size(patch));
+            sub = repmat({ad_subs{k}},size(patch));
+            % Add to arrays
+            patch_array = [patch_array; patch];
+            age_array = [age_array; age];
+            sex_array = [sex_array; sex];
+            subID = {subID;sub};
+        end     
+        % Combine into single matrix
+        ad_tbl = table(patch_array,age_array,sex_array);
+        
+        %%% Create table for CTE (Table: patch, age, subID)
+        patch_array = []; age_array = []; subID = [];
+        for k = 1:length(cte_subs)
+            % Retrieve patch, age, sex
+            patch = hm.(cte_subs{k}).(region).(param);
+            age = hm.(cte_subs{k}).age;
+            age = repmat(age,size(patch));
+            sub = repmat(cte_subs{k},size(patch));
+            % Add to arrays
+            patch_array = [patch_array; patch];
+            age_array = [age_array; age];
+            subID = [subID;sub];
+        end
+        % Combine into single matrix
+        cte_tbl = table(patch_array,age_array);
+
+        %%% Create table for HC (Table: patch, age, subID)
+        patch_array = []; age_array = []; subID = [];
+        for k = 1:length(nc_subs)
+            % Retrieve patch, age, sex
+            patch = hm.(nc_subs{k}).(region).(param);
+            age = hm.(nc_subs{k}).age;
+            age = repmat(age,size(patch));
+            sub = repmat(nc_subs{k},size(patch));
+            % Add to arrays
+            patch_array = [patch_array; patch];
+            age_array = [age_array; age];
+            subID = [subID;sub];
+        end
+        % Combine into single matrix
+        nc_tbl = table(patch_array,age_array,subID);
+
+        %%% Define LMMs
+        pause(0.1)
+%         ad_fml = ''
+
+    end
+end
 
 %% Correlation average vascular metric vs. age
+%{
 % struct to store covariance
 covariance = struct();
 % struct to store correlation
@@ -131,12 +248,127 @@ for ii = 1:length(params)
         end
     end
 end
+%}
 
 %% Correlation b/w vascular metric heatmap
 % X = ROIs from vascular metric A
 % Y = ROIs from vascular metric B
 % measure correlation between X,Y
-% repeat for each pair of metrics (24 combinations)
+% repeat for each pair of metrics (24 combinations) and region
+
+%%% Create heatmap subdivisions for each region
+subids = fields(metrics);
+% Iterate over each tissue region
+for ii = 1:length(regions)
+    for j=1:length(mets)
+        % Retrieve the heatmap ROI values for this region/parameter from
+        % all AD, CTE, and NC subjects. Concatenate into arrays.
+        [ad, cte, nc] = organize_metrics(hm,subids,...
+                                         regions{ii},mets{j});
+        % Save parameter by the group to fascilitate statistical analyses
+        % in a later step.
+        hm.(regions{ii}).(mets{j}).ad = ad;
+        hm.(regions{ii}).(mets{j}).cte = cte;
+        hm.(regions{ii}).(mets{j}).nc = nc;
+    end
+end
+
+%%% Vascular metric comparisons
+combos = {'ld_bd','ld_vf','ld_tort','bd_vf','bd_tort','vf_tort'};
+
+%%% Iterate over vascular metrics
+% Region labels
+rlabel = {'Entire Volume','WM','GM','sulci','gyri','GM sulci',...
+    'WM sulci','GM gyri','WM gyri'};
+% Output path for saving heatmaps
+fout = fullfile(mpath,'/correlation_heatmaps/');
+% Initialize correlation struct
+hm_corr = struct();
+% Iterate over metrics
+for j = 1:length(regions)
+    % Assign regions
+    reg = regions{j};
+    % Initialize correlation heatmap matrix
+    ad_corr_mat = zeros(4,4);
+    cte_corr_mat = zeros(4,4);
+    nc_corr_mat = zeros(4,4);
+    all_corr_mat = zeros(4,4);
+    % Initialize counter for combos
+    cnt = 1;
+    % Iterate over regions
+    for ii = 1:length(mets)
+        % x-axis metric
+        met1 = mets{ii};
+        % Iterate over metrics to pair
+        for k = (ii+1):length(mets)
+            % y-axis metric
+            met2 = mets{k};            
+            % AD
+            x_ad = hm.(reg).(met1).ad;
+            y_ad = hm.(reg).(met2).ad;
+            [ad_corr, ad_p] = corrcoef(x_ad,y_ad);
+            hm_corr.(combos{cnt}).(regions{j}).ad.corr = ad_corr(1,2);
+            hm_corr.(combos{cnt}).(regions{j}).ad.p = ad_p(1,2);
+            % CTE
+            x_cte = hm.(reg).(met1).cte;
+            y_cte = hm.(reg).(met2).cte;
+            [cte_corr, cte_p] = corrcoef(x_cte,y_cte);
+            hm_corr.(combos{cnt}).(regions{j}).cte.corr = cte_corr(1,2);
+            hm_corr.(combos{cnt}).(regions{j}).cte.p = cte_p(1,2);
+            % HC
+            x_hc = hm.(reg).(met1).nc;
+            y_hc = hm.(reg).(met2).nc;
+            [nc_corr, nc_p] = corrcoef(x_hc,y_hc);
+            hm_corr.(combos{cnt}).(regions{j}).hc.corr = nc_corr(1,2);
+            hm_corr.(combos{cnt}).(regions{j}).hc.p = nc_p(1,2);
+            % AD, CTE, NC combined correlation
+            x = [x_ad;x_cte;x_hc];
+            y = [y_ad;y_cte;y_hc];
+            [all_corr, all_p] = corrcoef(x, y);
+            hm_corr.(combos{cnt}).(regions{j}).all.corr = all_corr(1,2);
+            hm_corr.(combos{cnt}).(regions{j}).all.p = all_p(1,2);
+            % Print if correlation at least moderate
+            if ad_corr >= 0.3
+                sprintf('AD correlation = %f for %s in %s\n',...
+                    ad_corr(1,2),combos{cnt},regions{j})
+            elseif cte_corr >= 0.3
+                sprintf('CTE correlation = %f for %s in %s\n',...
+                    cte_corr(1,2),combos{cnt},regions{j})
+            elseif nc_corr >= 0.3
+                sprintf('NC correlation = %f for %s in %s\n',...
+                    nc_corr(1,2),combos{cnt},regions{j})
+            elseif all_corr >= 0.3
+                sprintf('ALL correlation = %f for %s in %s\n',...
+                    all_corr(1,2),combos{cnt},regions{j})
+            end
+            % Iterate combination counter
+            cnt = cnt + 1;
+            % Add to correlation matrix
+            ad_corr_mat(ii,k) = ad_corr(1,2);
+            cte_corr_mat(ii,k) = cte_corr(1,2);
+            nc_corr_mat(ii,k) = nc_corr(1,2);
+            all_corr_mat(ii,k) = all_corr(1,2);
+        end
+        
+    end
+    %%% Create correlation heatmap (by region)
+    figure;
+    tstr = append('AD - ',rlabel{j});
+    h = imagesc(ad_corr_mat); title(tstr);
+    % Assign colormap and set zero to black
+    cmap = colormap(parula); cmap(1,:) = [0,0,0];
+    colormap(cmap); colorbar; clim([0,1]);
+    % Recreate x and y axis labels
+    ticks = linspace(1,4,4);
+    lbl = {'LD','BD','VF','Tort'};
+    set(gca,'XAxisLocation','top'); set(gca,'XTick',ticks,'XTickLabel',lbl);
+    set(gca,'YTick',ticks,'YTickLabel',lbl); set(gca,'YTickLabelMode')
+    set(gca,'FontSize',20)
+    % Save figure
+    figout = fullfile(fout,append('correlation_heatmap_',regions{j},'.png'));
+    saveas(gca,figout);
+end
+close all;
 
 %% Correlation heatmap vascular metric vs. age
 % struct to store covariance
@@ -230,13 +462,6 @@ for ii = 1:length(mets)
         % AD, CTE, NC combined covariance
         c = cov(x,y);
         hm_corr_cov.(met).(regions{j}).all.cov = c(1,2);
-  
-    
-        %%% Univariate Analysis (sex for AD)
-        
-    
-        %%% Multivariate Linear Regression (sex + age for AD)    
-        
     
         %% Scatter Plots of Covariance and Correlation
         %{
