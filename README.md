@@ -1,5 +1,6 @@
 # PS-OCT Vessel Graphing
 Suite of tools for segmenting vessels from PS-OCT images and then converting the segments to a graph.
+The latest branch is 27-feature-background-subtraction
 
 ## Remove Loops from Graph
 There is a function for removing loops from a vasculature graph structure. It is located in the following directory:
