@@ -23,16 +23,20 @@ kernel = single(ones(kernel,kernel))./(single(kernel).^2);
 for ii=1:size(vol,3)
     % Take the ii slice
     depth = single(vol(:,:,ii));
-%     figure; imagesc(depth); colorbar; title('depth before threshold');
+    
     % apply minimum threshold
     depth(depth<th) = 0;
-%     figure; imagesc(depth); colorbar; title('depth after threshold');
 
     % Create normalization matrix (convolve depth with kernel, add offset)
     norm_mat = single(convn(depth, kernel, 'same') + 500);
     
     % Store normalized depth in matrix
     voln(:,:,ii) = im2uint16(depth./norm_mat);
+    
+    % Plots
+%     figure; imagesc(depth); colorbar; title('depth after threshold');
+%     figure; imagesc(norm_mat); colorbar; title('normalized matrix');    
+%     figure; imagesc(voln(:,:,ii)); colorbar; title('normalized depth');
 %     close all;
 end
 

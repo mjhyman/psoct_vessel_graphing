@@ -43,7 +43,11 @@ hm_fname = append('heatmap_ab_ptau_',num2str(cube_side),'.mat');
 % Load the vascular heatmap matrix
 hm = load(fullfile(mpath,hm_fname));
 hm = hm.heatmap;
-subid = fields(hm);
+% Retrieve subID from struct
+% subid = fields(hm);
+% Manually set subIDs
+subid = {'AD_10382','AD_20969','AD_21354','AD_21424',...
+         'NC_6839','NC_8095','NC_21499'};
 
 %%% Initialize filenames of registered pathology / heatmaps.
 % Some of the subjects had the patholoy registered with the automated
@@ -97,9 +101,9 @@ midx = {'gm','wm'};
 pairs = struct();
 
 %%% label cell array
-xlabels = {'Volume Fraction (unitless)','Branch Density (mm^-^3)',...
+ylabels = {'Volume Fraction (unitless)','Branch Density (mm^-^3)',...
     'Length Density (mm / mm^3)','Tortuosity (unitless)'};
-ylabels = {'[A-beta]','[p-tau]'};
+xlabels = {'[A-beta] (% Area)','[p-tau] (% Area)'};
 
 %% Spearman's Rho pathology vs. vasculature + Heatmap
 % Load the vascular heatmap and pathology heatmaps, recreate the ROIs from
@@ -354,10 +358,9 @@ path_cell = repmat({'A-beta';'A-beta';'p-tau';'p-tau'},[nsub,1]);
 % Strings for rho or p-value
 rho_p_cell = repmat({'rho';'p-value'},[nsub*npath,1]);
 % Strings for the group (AD, CTE, HC)
-ad_cell = repmat({'AD'},[5.*4,1]);
-cte_cell = repmat({'CTE'},[4.*4,1]);
+ad_cell = repmat({'AD'},[4.*4,1]);
 hc_cell = repmat({'HC'},[3.*4,1]);
-sub_cell = vertcat(ad_cell, cte_cell, hc_cell);
+sub_cell = vertcat(ad_cell, hc_cell);
 % Combine GM rho and p-values into table
 vf = gm_rho_p(:,1);
 ld = gm_rho_p(:,2);
@@ -377,13 +380,8 @@ table_out = fullfile(mpath, 'p_value_spearmans.xls');
 writetable(gm_table, table_out, 'Sheet', 'gm_combined');
 writetable(wm_table, table_out, 'Sheet', 'wm_combined');
 
-%% Fig. 4: Scatter plot pathology vs. vasculature (combine subjects)
+%% Create pairs of pathology & vasculature (combine subjects)
 % Combine all subjects within a group for each vascular metric
-% Only examine the gray matter (most dense pathology).
-% Create three types of plots:
-%   - Plot each subject as different color (separate plot for each group)
-%   - Plot each group as different color (separate plot for each metric)
-%   - Mean pathology vs. Mean vascular metric (color for each group)
 
 %%% Graphing labels
 % Vascular Metrics
@@ -391,12 +389,15 @@ vmets = {'vf','bd','ld','tr'};
 
 %%% Subject names for each group
 % Subjects within groups
-ad = {'AD_10382','AD_20832','AD_20969','AD_21354','AD_21424'};
-cte = {'CTE_6489','CTE_6912','CTE_7019','CTE_7126'};
+ad = {'AD_10382','AD_20969','AD_21354','AD_21424'};
 hc = {'NC_6839','NC_8095','NC_21499'};
 % Combine subject IDs into group
-gname = {'ad','cte','hc'};
-groups.ad = ad; groups.cte = cte; groups.hc = hc;
+gname = {'ad','hc'};
+groups.ad = ad; groups.hc = hc;
+% CTE subjects
+% cte = {'CTE_6489','CTE_6912','CTE_7019','CTE_7126'};
+% gname = {'ad','cte','hc'};
+% groups.cte = cte; 
 
 %%% Create struct combining all subjects within group
 % store the values of both the path & vascular metric
@@ -438,10 +439,50 @@ for vm = 1:length(vmets)
     end
 end
 
-%% Figure: mean GM pathology vs. mean WM vascular metric
+%% Figure 7: mean GM vascular metric vs. mean GM pathology
 % The pairs are [vasculature, pathology] in "savg" struct
 % NOTE: The indexing array is hard coded for simplicity
-nidcs = [5; 4; 3];
+nidcs = [4; 3];
+
+% Iterate over pathology
+for p=1:length(pidx)
+    % Iterate over vascular metrics
+    for vm=1:length(vmets)
+        % Initialize array to store all values for metric
+        combined = [];
+        % Iterate over subjects and combine into array
+        for g = 1 : length(subid)
+            % Extract pathology from GM
+            patho = savg.(pidx{p}).gm.(vmets{vm}).(subid{g});
+            patho = patho(2);
+            % Extract respective vasculature from WM
+            vasc = savg.(pidx{p}).gm.(vmets{vm}).(subid{g});
+            vasc = vasc(1);
+            % Create the set of vasculature + pathology
+            set = [vasc, patho];
+            % Place into single array
+            combined = [combined; set];
+        end
+        % Set the x-axis label (pathology)
+        xl = xlabels{p};
+        % Set the y-axis label (vascular metrics)
+        yl = ylabels{vm};
+        % Set title string
+        tstr = append('Mean GM Pathology vs. Mean GM Vascular Metric ',...
+                      pidx{p},' ',vmets{vm});
+        % Set the filename
+        fname = append('subject_mean_gm_path_vs_mean_gm_vasc_',...
+                        pidx{p},'_',vmets{vm},'_scatter.png');
+        % Call function to plot
+        path_group_plot(combined,nidcs,tstr,xl,yl,fields(groups),...
+                path_reg,'combined',fname,100)
+    end
+end
+
+%% Supp. Figure 7: mean GM pathology vs. mean WM vascular metric
+% The pairs are [vasculature, pathology] in "savg" struct
+% NOTE: The indexing array is hard coded for simplicity
+nidcs = [4; 3];
 
 % Iterate over pathology
 for p=1:length(pidx)
@@ -462,10 +503,10 @@ for p=1:length(pidx)
             % Place into single array
             combined = [combined; set];
         end
-        % Set the x-axis label (vascular metrics)
-        xl = xlabels{vm};
-        % Set the y-axis label (pathology)
-        yl = ylabels{p};
+        % Set the x-axis label (pathology)
+        xl = xlabels{p};
+        % Set the y-axis label (vascular metrics)
+        yl = ylabels{vm};
         % Set title string
         tstr = append('Mean GM Pathology vs. Mean WM Vascular Metric ',...
                       pidx{p},' ',vmets{vm});
@@ -478,8 +519,9 @@ for p=1:length(pidx)
     end
 end
 
-%% Figure for each group, pathology, vascular metric
+%% Scatterplot for each group, pathology, vascular metric
 % Scatterplot of all ROIs within each subject in each group
+
 
 % Iterate over groups
 for g = 1 : length(fields(groups))
@@ -506,9 +548,11 @@ for g = 1 : length(fields(groups))
         end
     end
 end
+%}
 
-%% Create figure comparing groups (combine subjects within same group)
-% Use different colors for different groups
+%% Scatterplot comparing groups (combine subjects within same group)
+% Point for each observation
+%{
 % Iterate over pathologies
 for p=1:length(pidx)
     % Iterate over vascular metrics
@@ -540,11 +584,13 @@ for p=1:length(pidx)
                 path_reg,'combined',fname,50)
     end
 end
+%}
 
-%% Plot the GM mean pathology vs. GM mean vascular metric
+%% Scatterplot GM mean pathology vs. GM mean vascular metric (not in paper)
 % NOTE: The indexing array is hard coded for simplicity
-nidcs = [5; 4; 3];
+nidcs = [4; 3];
 
+%{
 % Iterate over pathology
 for p=1:length(pidx)
     % Iterate over vascular metrics
@@ -572,26 +618,27 @@ for p=1:length(pidx)
                 path_reg,'combined',fname,100)
     end
 end
+%}
 
-%% Fig. 4: Scatter plot of pathology vs. vasculature
+%% Scatterplot of pathology vs. vasculature (figure for each subject)
 % The struct "pairs" contains a matrix of [x,y] pairs for each subject,
 % pathology, and vascular metric (i.e. pairs.[sub].[ab/pt].[vf/bd/ld])
 % The first column is the vascular metrix (x-axis) within the ROI, and the
 % second column is the pathology (y-axis) within the same ROI.
 
+
 % Vascular Metrics
 vmets = {'vf','bd','ld','tr'};
 
 % axis limits for each vascular metric
-xlims.vf = [0, 0.03];
-xlims.ld = [0, 8];
-xlims.bd = [0, 120];
-xlims.tr = [1, 1.4];
+ylims.vf = [0, 0.03];
+ylims.ld = [0, 8];
+ylims.bd = [0, 120];
+ylims.tr = [1, 1.4];
 % axis limit for pathology (same for all plots)
-ylims = [0,1];
-% x-axis labels for vascular metrics
-xlabels = {'Volume Fraction (unitless)','Branch Density (mm^-^3)',...
-    'Length Density (mm^-^2)','Tortuosity (unitless)'};
+xlims = [0,1];
+% run for just AD_21354
+subid = {'AD_21354'};
 
 % Iterate over subject IDs
 for ii = 1:length(subid)
@@ -603,10 +650,10 @@ for ii = 1:length(subid)
             for m=1:2
                 % Extract the pair values
                 pair = pairs.(subid{ii}).(midx{m}).(pidx{j}).(vmets{k});
-                % Set the x-axis label (vascular metrics)
-                xl = xlabels{k};
-                % Set the y-axis label (pathology)
-                yl = ylabels{j};
+                % Set the x-axis label (pathology)
+                xl = xlabels{j};
+                % Set the y-axis label (vascular metrics)
+                yl = ylabels{k};
                 % Set title string
                 tstr = append(subid{ii},' ',midx{m},' ',pidx{j},' ',...
                                 vmets{k});
@@ -614,12 +661,13 @@ for ii = 1:length(subid)
                 fname = append(subid{ii},'_',midx{m},'_',pidx{j},'_',...
                                 vmets{k},'_scatter.png');
                 % Call plotting function
-                path_vasc_scatter(pair,subid{ii},tstr,...
-                    xlims.(vmets{k}),ylims,xl,yl,path_reg,fname)
+                path_vasc_scatter(pair,subid{ii},...
+                    xlims,ylims.(vmets{k}),xl,yl,path_reg,fname)
             end
         end
     end
 end
+%}
 
 %% Spearman's rho for averages (combine samples from all groups)
 % Use the data struct (savg), which contains the average vascular metric
@@ -667,116 +715,6 @@ for ii = 1:length(pidx)
     end
 end
 
-
-%% Plot and save the heat maps
-function plot_save_heatmap(Ndepths, heatmaps, flip_cbar, colorbar_range,...
-    masks, tstr, cbar_label, dpath, fname)
-% PLOT_SAVE_HEATMAP use imagesc and set background = 0
-% INPUT
-%   Ndepths (int): number of depths in z dimension
-%   heatmaps (double matrix): heatmaps of vascular metric
-%   flip_cbar (logical): reverse the direction of the colorbar
-%   colorbar_range (double array): [min, max]
-%   masks (double): tissue mask (1=tissue, 0=other)
-%   tstr (string): figure title
-%   cbar_label (string): colorbar label
-%   dpath (string): data dicrectory path
-%   fname (string): name of figure to save
-
-%%% Set the number of depths to iterate for each heatmap
-% If the number of depths is not specified, then set it equal to the number
-% of z dimensions.
-if isempty(Ndepths)
-    Ndepths = size(heatmaps,3);
-end
-% Set fontsize for the heatmap figure
-fontsize = 40;
-
-%%% Iterate over frames in z dimension
-for d = 1:Ndepths
-    %%% Heatmap of j_th frame from the length density
-    fh = figure();
-%     fh.WindowState = 'maximized';
-    % If there are multiple heatmaps in the matrix
-    if size(heatmaps,3) > 1
-        heatmap = heatmaps(:,:,d);
-    % Here it is just a single frame of a heatmap
-    else
-        heatmap = heatmaps;
-    end
-    % Initialize heatmap
-    h = imagesc(heatmap);
-
-    %%% Initialize colorbar
-    % If the colorbar_range is passed in, then extract min & max
-    if ~isempty(colorbar_range)
-        cmap_min = colorbar_range(1);
-        cmap_max = colorbar_range(2);
-    % Otherwise, set limits from the current heatmap
-    else
-        % Min = Lowest value also greater than zero
-        cmap_min = min(heatmap(heatmap(:)>0));
-        % Max = Find the 95th percentile for upper limit
-        cmap_max = prctile(heatmap(:), 95);
-    end
-    % Initialize the colormap limits
-    cmap = jet(256);
-    clim(gca, [cmap_min, cmap_max]);
-    % Initialize colormap and colorbar
-    if flip_cbar
-        colormap(flipud(cmap));
-    else
-        colormap(cmap);
-    end
-    c = colorbar;
-
-    %%% Apply tissue mask to the heatmap to remove background
-    alpha_mask = double(masks(:,:,d));
-    set(h, 'AlphaData', alpha_mask);
-
-    %%% Configure figure parameters
-    % Update title string with specific pathology
-    pathology = {'A-Beta','p-tau'};
-    if size(heatmaps,3) > 1
-        title_str = append(tstr, ' ', pathology{d});
-    else
-        title_str = tstr;
-    end
-    title(title_str,'Interpreter','none');
-    set(gca, 'FontSize', fontsize);
-    % Label the colorbar    
-    c.Label.String = cbar_label;
-    % Offset colorbar label to the right of colorbar
-    c.Label.Position = [10 (cmap_max - (cmap_max-cmap_min)/2)];
-    c.Label.Rotation = 270;
-    % Increase fontsize of colorbar
-    c.FontSize = 40;
-    % Remove x and y tick labels
-    set(gca,'Yticklabel',[]);
-    set(gca,'Xticklabel',[]);
-    % Remove the boundary box
-    box off;
-    
-    %%% Save figure as PNG
-    % If there are multiple heatmaps in the matrix, save vascular heatmap
-    if size(heatmaps,3) > 1
-        fout = append(fname, '_', pathology{d});
-    % Otherwise, save the pathology heatmap
-    else
-        fout = fname;
-    end
-    % If the colorbar is reversed then add suffix to filename
-    if flip_cbar
-        fout = append(fout, '_flip_cbar');
-    end
-    % Save figure as PNG
-    fout = fullfile(dpath, fout);
-    pause(1)
-    saveas(gca, fout,'png');
-    close;
-end
-end
-
 %% Scatterplot of path vs. vasc (combined subjects)
 % Plot a different color for each subject
 function path_group_plot(pair,nidcs,tstr,xl,yl,subid,dpath,...
@@ -799,8 +737,9 @@ function path_group_plot(pair,nidcs,tstr,xl,yl,subid,dpath,...
 
 %%% Initialize Color Arrays
 % Set the color for subsequent plots
-pcolors = [1 0 0 ; 1.00 0.54 0.00; 0.47 0.25 0.80;
-             0.25 0.80 0.54; 0 0 0];
+% pcolors = [1 0 0 ; 1.00 0.54 0.00; 0.47 0.25 0.80;
+%              0.25 0.80 0.54; 0 0 0];
+pcolors = [220/255,38/255, 127/255;100/255, 143/255, 255/255];
 % Set the plotting order
 colororder(pcolors);
 
@@ -810,15 +749,16 @@ pair(:,2) = rescale(pair(:,2),'InputMin',0,'InputMax',255);
 %%% Create scatter plot
 % Initialize figure
 fh = figure();
-set(fh,'Units','normalized','OuterPosition',[0, 0.04,1,1])
+set(fh,'Units','normalized','OuterPosition',[0.1,-0.2,1.3,1.2])
 % Counter to track the array index for each subject
 cnt = 0;
 for ii = 1 : length(nidcs)
     % Retrieve vasculature and pathology values
-    x = pair(cnt+1 : (cnt+nidcs(ii)),1);
-    y = pair(cnt+1 : (cnt+nidcs(ii)),2);
+    x = pair(cnt+1 : (cnt+nidcs(ii)),2);
+    y = pair(cnt+1 : (cnt+nidcs(ii)),1);    
     % Plot with specific color
-    scatter(x,y,marker_size,pcolors(ii,:),'filled','o');
+    plot(x,y,'o','MarkerSize',20,'Color',pcolors(ii,:),...
+        'MarkerFaceColor',pcolors(ii,:));
     hold on;
     % Increment the counter
     cnt = cnt + nidcs(ii);
@@ -826,14 +766,40 @@ end
 
 %%% Adjust figure parameters
 % Axis limits, labels, etc.
-ylim([0,max(pair(:,2))+0.01]);
 xlabel(xl);
 ylabel(yl);
 set(gca,'FontSize',25);
-title(tstr)
-% l = legend(subid);
-% set(l,'Interpreter','none')
-% l.Position = 'Best';
+hTitle = title(tstr,'FontSize',10);
+% Move title slightly higher
+set(hTitle, 'Units', 'normalized');
+pos = get(hTitle, 'Position');
+pos(2) = pos(2) + 0.05;  % Move higher in normalized units
+set(hTitle, 'Position', pos);
+
+% Disable scientific notation on y-axis
+ax = gca;
+ax.YAxis.Exponent = 0;
+% Set x-axis tick marks for A-Beta or P-tau
+if strcmp(xl,'[A-beta] (% Area)')
+    xlim([0,0.15])
+    xticks([0, 0.05, 0.1, 0.15]);
+    xticklabels({'0','5','10','15'});
+else
+    xlim([0,0.8]);
+    xticks([0, 0.2, 0.4, 0.6, 0.8]);
+    xticklabels({'0','20','40','60','80'});
+end
+% Set y-axis tick marks and labels for vascular metrics
+if strcmp(yl,'Volume Fraction (unitless)')
+    ylim([0,0.01]);
+elseif strcmp(yl,'Branch Density (mm^-^3)')
+    ylim([10, 80]);
+elseif strcmp(yl,'Length Density (mm / mm^3)')
+    ylim([0, 5]);
+else
+    ylim([1.08, 1.15]);
+%     ylim([1.05, 1.2]);
+end
 
 % Save the figure
 fout = fullfile(dpath,gname,fname);
@@ -845,7 +811,7 @@ end
 
 
 %% Scatterplot of the pathology vs. vasculature
-function path_vasc_scatter(pair,sub,tstr,xlims,ylims,xstr,ystr,dpath,fname)
+function path_vasc_scatter(pair,sub,xlims,ylims,xstr,ystr,dpath,fname)
 % LIN_REG_PLOT scatterplot of pathology vs. vasculature
 % INPUT
 %   pair (double matrix [x,2]): ROI pairs,
@@ -860,23 +826,26 @@ function path_vasc_scatter(pair,sub,tstr,xlims,ylims,xstr,ystr,dpath,fname)
 %   dpath (string): data dicrectory path
 %   fname (string): name of figure to save
 
-% Vascular metric
-x = pair(:,1);
-% Pathology 
-y = pair(:,2);
+% y-axis = Vascular metric
+y = pair(:,1);
+% x-axis = Pathology 
+x = pair(:,2);
 % Rescale Pathology from uint8 to [0,1]
-y = rescale(y,0,1,'InputMin',0,'InputMax',255);
+x = rescale(x,0,1,'InputMin',0,'InputMax',255);
 % Create figure and scatter plot
 fh = figure();
-set(fh,'Position',[1093 5 1047 906]);
+set(fh,'Position',[100 -500 1047 906]);
 scatter(x,y,100,'k','filled','o');
 % Axis limits
 xlim([xlims(1),xlims(2)]);
 ylim([ylims(1),ylims(2)]);
+% X-axis tick marks
+xticks([0, 0.5, 1]);
+xticklabels({'0','50','100'});
 % Axis labels
 xlabel(xstr);
 ylabel(ystr);
-set(gca,'FontSize',50);
+set(gca,'FontSize',40);
 % title(tstr)
 legend('hide')
 % Save the figure

@@ -59,13 +59,13 @@ elseif isunix
              'NC_6974', 'NC_7597',...
              'NC_8095', 'NC_8653',...
              'NC_21499'};
-    subid = {'NC_8095'};
+    subid = {'AD_8790'};
     
     %%% Gaussian sigma arrays:
     % Small vessel sigma array = [1, 3, 5]
     % Medium vessel sigma array = [5, 7, 9]
     % Large vessel sigma array = [7, 9, 11]
-    sigmas = [1,3,5; 3,5,7; 5,7,9; 7,9,11];
+    sigmas = [1,3,5; 2,3,4; 3,5,7; 5,7,9; 7,9,11];
    
     %%% Create cell array of subject ID and sigma for job array on the SCC 
     nrow = length(subid)*size(sigmas,1);
@@ -101,7 +101,7 @@ elseif isunix
         [subid, gsigma] = sub_sigma{batch_idx, :};
     % Otherwise, set the Gaussian sigma manually
     elseif strcmp(batch_idx,'undefined')
-        subid = 'NC_8095';
+        subid = 'AD_8790';
         gsigma = [5,7,9];
     end
 end
@@ -186,6 +186,7 @@ vol = double(vol_uint16);
 fout = strcat(fullfile(fullpath, 'probability_map'), '.mat');
 save(fout, 'pmat', '-v7.3');
 
+%{
 for j = 1:length(min_prob)
     %%% Threshold probability matrix with min_prob array
     I_seg = pmat;
@@ -216,3 +217,4 @@ for j = 1:length(min_prob)
         seg_graph_init(I_seg, vox_dim, fullpath, fname_seg, viz, loop_bool);
     end    
 end
+%}

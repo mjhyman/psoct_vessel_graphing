@@ -49,14 +49,14 @@ graphs = {'seg_refined_masked_rmloop_graph_data.mat';...
         'seg_wm_gyri_refined_masked_rmloop_graph_data.mat'};
 
 % IDs of each subject
-subid = {'AD_10382', 'AD_20832', 'AD_20969', 'AD_21354', 'AD_21424',...
+subid = {'AD_10382', 'AD_8790', 'AD_20969', 'AD_21354', 'AD_21424',...
          'CTE_6489', 'CTE_6912', 'CTE_7019', 'CTE_7126',...
          'NC_6839',  'NC_6974',  'NC_8653',  'NC_21499', 'NC_8095'};
 
 % Initialize dictionary to store ages
 age = dictionary();
 age('AD_10382') = 84;
-age('AD_20832') = 87;
+age('AD_8790') = 65;
 age('AD_20969') = 83;
 age('AD_21354') = 76;
 age('AD_21424') = 86;
@@ -86,16 +86,21 @@ for ii = 1:length(subid)
     masks = struct();
 
     % Load all premade masks (tissue, gyri, sulci, GM, WM)
-    mask_tiss = load(fullfile(dpath,sub,maskdir,'mask_tiss.mat'),'mask_tiss');
+    mask_tiss = load(fullfile(dpath,sub,maskdir,'mask_tiss.mat'));
     mask_gyri = load(fullfile(dpath,sub,maskdir,'mask_gyri.mat'));
     mask_sulci = load(fullfile(dpath,sub,maskdir,'mask_sulci.mat'));
     mask_gm = load(fullfile(dpath,sub,maskdir,'mask_gm.mat'));
     mask_wm = load(fullfile(dpath,sub,maskdir,'mask_wm.mat'));
-    mask_tiss = mask_tiss.mask_tiss;
-    mask_gyri = mask_gyri.mask_gyri;
-    mask_sulci = mask_sulci.mask_sulci;
-    mask_gm = mask_gm.mask_gm;
-    mask_wm = mask_wm.mask_wm;
+    fn = fieldnames(mask_tiss);
+    mask_tiss = mask_tiss.(fn{1});
+    fn = fieldnames(mask_gyri);
+    mask_gyri = mask_gyri.(fn{1});
+    fn = fieldnames(mask_sulci);
+    mask_sulci = mask_sulci.(fn{1});
+    fn = fieldnames(mask_gm);
+    mask_gm = mask_gm.(fn{1});
+    fn = fieldnames(mask_wm);
+    mask_wm = mask_wm.(fn{1});
 
     %%% Find the maximum depth to use for the masks
     zmin = min([size(mask_tiss,3), size(mask_gyri,2), size(mask_sulci,3),...

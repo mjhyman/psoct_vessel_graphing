@@ -45,7 +45,7 @@ end
 subid = {'AD_20832', 'AD_20969','AD_21354', 'AD_21424',...
          'CTE_6489','CTE_6912','CTE_7019','CTE_7126','CTE_8572',...
          'NC_6839','NC_6974','NC_8653','NC_21499','NC_8095'};
-subid = {'NC_8095'};
+subid = {'AD_8790'};
 
 % Volume filename
 volname = 'ref_4ds_norm_inv.tif';
@@ -76,9 +76,9 @@ ov = make_fpaths(dpath, subdir, ov, volname, dirout);
 
 %% Threshold the probability maps and overlay segmentations
 % Minimum threshold
-th = 0.18;
+th = 0.08;
 % Subdirectory
-subdir = '/p18/';
+subdir = '/p08/';
 % Threshold probability maps and combine
 combine_pmats(ov,th,subdir);
 

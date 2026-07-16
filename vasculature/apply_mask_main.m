@@ -46,12 +46,14 @@ end
 subid = {'AD_10382', 'AD_20832', 'AD_20969','AD_21354', 'AD_21424',...
          'CTE_6489', 'CTE_6912','CTE_7019','CTE_7126',...
          'NC_6839',  'NC_6974', 'NC_8653','NC_21499', 'NC_8095'};
+subid = {'AD_8790'};
 
 %%% stacks that require truncating
 % Last depth to retain for each stack
 zmins = [187, 165, 242, 165, 220,...
         242, 110, 198, 198,...
         176, 198, 165, 165, 264];
+zmins = 200;
 % Create dictionary to store last image in stack
 d = dictionary(subid, zmins);
 
@@ -88,14 +90,14 @@ voln_name = 'ref_4ds_norm_inv';
 
 %% Iterate through subjects. Create and apply mask_tiss.
 % parfor (ii = 1:length(subid),NSLOTS)
-for ii = 14:length(subid)
+for ii = 1:length(subid)
     %%% Debugging information
     fprintf('\n---------Starting Subject %s---------\n',subid{ii})
 
     %% Import tissue volumes, segmentation, and masks
     %%% Import normalized volume
     fpath = fullfile(dpath, subid{ii}, subdir, strcat(voln_name,'.tif'));
-    voln = TIFF2MAT(fpath);   
+    voln = TIFF2MAT(fpath);
 
     %%% Import non-normalized volume
     fpath = fullfile(dpath, subid{ii}, subdir1, strcat(vol_name,'.mat'));
@@ -193,7 +195,7 @@ for ii = 14:length(subid)
             volm = vol .* mask_tiss;
         end
         % Mask the normalized volume (volnm)
-        volnm = voln .* uint16(mask_tiss);
+        volnm = uint16(voln) .* uint16(mask_tiss);
         % Mask the segmentation (segm)
         segm = logical(seg .* mask_tiss);
         
@@ -435,7 +437,7 @@ end
 fprintf('---------Finished Masking all Subjects---------\n')
 
 %% Convert segmentation to graph
-for ii = 14:length(subid)
+for ii = 1:length(subid)
     fprintf('---------Graphing Subject %s---------\n',subid{ii})
     % Voxel dimensions
     vox_dim = [12, 12, 15];

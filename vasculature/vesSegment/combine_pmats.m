@@ -66,6 +66,10 @@ parfor (ii = 1:size(ov,2), NSLOTS)
     segout = fullfile(dirout, 'seg.mat');
     % Save combined segmentations
     save_seg(segout, seg);
+    % Output combined segmentations as .TIF
+    segmat2tif(seg,fullfile(dirout,'seg.tif'));
+    % Output combined segmentations as .NII
+    save_mri(seg,fullfile(dirout,'seg.nii'),[0.012,0.012,0.012],'uchar',0);
 
     %%% Generate quality assurance overlay with volume
     % Import volume

@@ -40,7 +40,9 @@ hm_fname = append('heatmap_ab_ptau_',num2str(cube_side),'.mat');
 % Load the vascular heatmap matrix
 hm = load(fullfile(mpath,hm_fname));
 hm = hm.heatmap;
-subid = fields(hm);
+% Manually select subject IDs
+subid = {'AD_10382','AD_20969','AD_21354','AD_21424',...
+        'NC_6839','NC_21499','NC_8095'};
 
 %%% Initialize filenames of registered pathology / heatmaps.
 % Some of the subjects had the patholoy registered with the automated
@@ -328,6 +330,7 @@ for d = 1:Ndepths
     pause(1)
     box off;
     saveas(gca, fout,'png');
+    pause(1)
     close;
 end
 end

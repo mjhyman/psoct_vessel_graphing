@@ -1,4 +1,4 @@
-function [pstats] = calc_heatmap_stats(hm, regions, params, subids,...
+function [pstats] = calc_caa_heatmap_stats(hm, regions, params, subids,...
                                         alpha, dout, fname)
 %CALC_HEATMAP_STATS Linear Mixed Effects (LME) model
 % This function creates an LME model and then tests the fixed effects
@@ -38,7 +38,6 @@ for ii = 1:length(regions)
         %%% Load in the arrays from each group (ad, cte, nc)
         ad = hm.(regions{ii}).(params{j}).ad;
         cte = hm.(regions{ii}).(params{j}).cte;
-        nc = hm.(regions{ii}).(params{j}).nc;
 
         %% Generate a linear mixed-effects model
         % The purpose is to incorporate a random effect into the analysis
@@ -49,7 +48,6 @@ for ii = 1:length(regions)
         % Initialize counter for N values per group
         nval_ad = 0;
         nval_cte = 0;
-        nval_nc = 0;
         % Initialize counter for number of values per subject
         nval = zeros(length(subids),1);
         % Iterate over subjects
@@ -62,8 +60,6 @@ for ii = 1:length(regions)
                 nval_ad = nval_ad + nval(s);
             elseif contains(subids(s), 'CTE_')
                 nval_cte = nval_cte + nval(s);
-            elseif contains(subids(s), 'NC_')
-                nval_nc = nval_nc + nval(s);
             end
         end
         % Create column vector with subject identifier for each value
@@ -81,7 +77,6 @@ for ii = 1:length(regions)
         % Separate the groups (AD, CTE, NC)
         ad_vec = subID_vec(1 : nval_ad);
         cte_vec = subID_vec(nval_ad+1 : nval_ad+nval_cte);
-        nc_vec = subID_vec(nval_ad+nval_cte+1 : nval_ad+nval_cte+nval_nc);
 
         %%% Create a table for fitting the LME model
         % Column 1 = group label
@@ -89,19 +84,13 @@ for ii = 1:length(regions)
         % Create the group labels
         g_ad = repmat({'AD'},[length(ad),1]);
         g_cte = repmat({'CTE'},[length(cte),1]);
-        g_nc = repmat({'HC'},[length(nc),1]);
-        groups_ad_nc = vertcat(g_ad, g_nc);
-        groups_cte_nc = vertcat(g_cte, g_nc);
+        groups_ad_cte = vertcat(g_ad, g_cte);
         % Combine vascular metrics into column vector
-        vmets_ad_nc = [ad; nc];
-        vmets_cte_nc = [cte; nc];
+        vmets_ad_nc = [ad; cte];
         % Combine the subject IDs into column vector
-        subids_ad_nc = vertcat(ad_vec, nc_vec);
-        subids_cte_nc = vertcat(cte_vec, nc_vec);
+        subids_ad_nc = vertcat(ad_vec, cte_vec);
         % Table (group labels, subjectID, vascular metric values)
-        tbl_ad_nc = table(groups_ad_nc,subids_ad_nc,vmets_ad_nc,...
-              'VariableNames',{'Groups','subID','VascularMetric'});
-        tbl_cte_nc = table(groups_cte_nc,subids_cte_nc,vmets_cte_nc,...
+        tbl_ad_nc = table(groups_ad_cte,subids_ad_nc,vmets_ad_nc,...
               'VariableNames',{'Groups','subID','VascularMetric'});
                
         %%% Fit linear mixed-effects model (LME) (table)
@@ -110,39 +99,30 @@ for ii = 1:length(regions)
         %   random effect (intercept/subject): subID
         %   fixed effect: Groups
         fml = 'VascularMetric ~ Groups + (1 | subID)';
-        % Fit the model for AD vs. HC
-%         lme_ad_nc = fitlme(tbl_ad_nc,fml);
-        lme_ad_nc = fitglme(tbl_ad_nc,fml,'Distribution','Normal');
-        % Fit the model for CTE vs. HC
-%         lme_cte_nc = fitlme(tbl_cte_nc,fml);
-        lme_cte_nc = fitglme(tbl_cte_nc,fml,'Distribution','Normal');
+        % Fit the model for AD vs. CTE
+        lme_ad_cte = fitglme(tbl_ad_nc,fml,'Distribution','Normal');
         
         %%% Estimates of fixed effects 
-        [~,~,stats_ad_nc] = fixedEffects(lme_ad_nc);
-        [~,~,stats_cte_nc] = fixedEffects(lme_cte_nc);
+        [~,~,stats_ad_cte] = fixedEffects(lme_ad_cte);
         % Store the p-value for the stats tests
-        p = zeros(2,1);
-        p(1) = stats_ad_nc{2,6};
-        p(2) = stats_cte_nc{2,6};
+        p = stats_ad_cte{2,6};
         
         %%% print region/parameter/inequal. for significance/trend
         % Median values
         med_ad = median(ad);
         med_cte = median(cte);
-        med_nc = median(nc);
         % Mean values
         mean_ad = mean(ad);
         mean_cte = mean(cte);
-        mean_nc = mean(nc);
 
         %% Print the significant results
         % AD Significance
-        if p(1) < alpha
+        if p < alpha
             % AD Mean
-            if mean_ad < mean_nc
+            if mean_ad < mean_cte
                 fprintf('SIG: mean(ad) < mean(nc) for %s, %s\n',...
                         regions{ii}, params{j})
-            elseif mean_ad == mean_nc
+            elseif mean_ad == mean_cte
                 fprintf('SIG: mean(ad) = mean(nc) for %s, %s\n',...
                         regions{ii}, params{j})
             else
@@ -150,39 +130,14 @@ for ii = 1:length(regions)
                         regions{ii}, params{j})
             end
             % AD Median
-            if med_ad < med_nc
+            if med_ad < med_cte
                 fprintf('SIG: median(ad) < median(nc) for %s, %s\n',...
                         regions{ii}, params{j})
-            elseif med_ad == med_nc
+            elseif med_ad == med_cte
                 fprintf('SIG: median(ad) = median(nc) for %s, %s\n',...
                         regions{ii}, params{j})
             else
                 fprintf('SIG: median(ad) > median(nc) for %s, %s\n',...
-                        regions{ii}, params{j})
-            end
-        end
-        % CTE Significance
-        if p(2) < alpha
-            % AD Mean
-            if mean_cte < mean_nc
-                fprintf('SIG: mean(cte) < mean(nc) for %s, %s\n',...
-                        regions{ii}, params{j})
-            elseif mean_cte == mean_nc
-                fprintf('SIG: mean(cte) = mean(nc) for %s, %s\n',...
-                        regions{ii}, params{j})
-            else
-                fprintf('SIG: mean(cte) > mean(nc) for %s, %s\n',...
-                        regions{ii}, params{j})
-            end
-            % AD Median
-            if med_cte < med_nc
-                fprintf('SIG: median(cte) < median(nc) for %s, %s\n',...
-                        regions{ii}, params{j})
-            elseif med_cte == med_nc
-                fprintf('SIG: median(cte) = median(nc) for %s, %s\n',...
-                        regions{ii}, params{j})
-            else
-                fprintf('SIG: median(cte) > median(nc) for %s, %s\n',...
                         regions{ii}, params{j})
             end
         end
@@ -191,56 +146,46 @@ for ii = 1:length(regions)
         % Save coefficients, which is the difference between the
         % experimental and control group, adjusted for potential
         % correlation between repeated measures on same subject.
-        pstats.(regions{ii}).(params{j}).coef.ad_nc = stats_ad_nc{2,2};
-        pstats.(regions{ii}).(params{j}).coef.cte_nc = stats_cte_nc{2,2};
+        pstats.(regions{ii}).(params{j}).coef.ad_nc = stats_ad_cte{2,2};
 
         % Save the 95% confidence interval for the coefficient
-        pstats.(regions{ii}).(params{j}).CI_lower.ad_nc = stats_ad_nc{2,7};
-        pstats.(regions{ii}).(params{j}).CI_upper.ad_nc = stats_ad_nc{2,8};
-        pstats.(regions{ii}).(params{j}).CI_lower.cte_nc = stats_cte_nc{2,7};
-        pstats.(regions{ii}).(params{j}).CI_upper.cte_nc = stats_cte_nc{2,8};
+        pstats.(regions{ii}).(params{j}).CI_lower.ad_cte = stats_ad_cte{2,7};
+        pstats.(regions{ii}).(params{j}).CI_upper.ad_cte = stats_ad_cte{2,8};
 
         % Save the p-value for each comparison
-        pstats.(regions{ii}).(params{j}).p.ad_nc = p(1);
-        pstats.(regions{ii}).(params{j}).p.cte_nc = p(2);
+        pstats.(regions{ii}).(params{j}).p.ad_cte = p;
 
         % Save the standard error
-        pstats.(regions{ii}).(params{j}).se.ad_nc = stats_ad_nc{2,3};
-        pstats.(regions{ii}).(params{j}).se.cte_nc = stats_cte_nc{2,3};
+        pstats.(regions{ii}).(params{j}).se.ad_cte = stats_ad_cte{2,3};
 
         % Save the t-statistic
-        pstats.(regions{ii}).(params{j}).t.ad_nc = stats_ad_nc{2,4};
-        pstats.(regions{ii}).(params{j}).t.cte_nc = stats_cte_nc{2,4};
+        pstats.(regions{ii}).(params{j}).t.ad_cte = stats_ad_cte{2,4};
 
         % Save the degrees of freedom
-        pstats.(regions{ii}).(params{j}).df.ad_nc = stats_ad_nc{2,5};
-        pstats.(regions{ii}).(params{j}).df.cte_nc = stats_cte_nc{2,5};
+        pstats.(regions{ii}).(params{j}).df.ad_cte = stats_ad_cte{2,5};
 
         % Save the median, mean, & std dev for each comparison
         pstats.(regions{ii}).(params{j}).med.ad = med_ad;
         pstats.(regions{ii}).(params{j}).med.cte = med_cte;
-        pstats.(regions{ii}).(params{j}).med.nc = med_nc;
         pstats.(regions{ii}).(params{j}).mean.ad = mean_ad;
         pstats.(regions{ii}).(params{j}).mean.cte = mean_cte;
-        pstats.(regions{ii}).(params{j}).mean.nc = mean_nc;
         pstats.(regions{ii}).(params{j}).std.ad = std(ad);
         pstats.(regions{ii}).(params{j}).std.cte = std(cte);
-        pstats.(regions{ii}).(params{j}).std.nc = std(nc);
 
         close all;
     end
     %% Generate a table of p-values for the region
+    %{
     % Create cell array for the pairwise comparisons
     Metric = {'AD vs. HC p-value'; 'CTE vs. HC p-value';...
             'AD vs. HC coeff'; 'CTE vs. HC coeff';
             'AD vs. HC std error'; 'CTE vs. HC std error';...
+            'AD vs. HC t-statistic'; 'CTE vs. HC t-statistic';...
+            'AD vs. HC df'; 'CTE vs. HC df';...
             'AD vs. HC C.I. (lower)'; 'CTE vs. HC C.I.(lower)';...
             'AD vs. HC C.I. (upper)'; 'CTE vs. HC C.I. (upper)';...
-            'AD vs. HC df'; 'CTE vs. HC df';...
-            'AD vs. HC t-statistic'; 'CTE vs. HC t-statistic';...
-            'AD Mean';'AD Std.Dev.';...
-            'HC Mean';'HC Std.Dev.';...
-            'CTE Mean';'CTE Std.Dev.'};
+            'AD Med.';'CTE Med.';'HC Med.';...
+            'AD Std.Dev.';'CTE Std.Dev.';'HC Std.Dev.'};
     
     % Initialize structure for storing 
     stat_struct = struct();
@@ -259,18 +204,12 @@ for ii = 1:length(regions)
         coef = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).coef));
         cil = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).CI_lower));
         ciu = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).CI_upper));
-        % Retrieve mean
-        avg_ad = pstats.(regions{ii}).(params{j}).mean.ad;
-        avg_cte = pstats.(regions{ii}).(params{j}).mean.cte;
-        avg_hc = pstats.(regions{ii}).(params{j}).mean.nc;
-        % Retrieve standard deviation
-        std_ad = pstats.(regions{ii}).(params{j}).std.ad;
-        std_cte = pstats.(regions{ii}).(params{j}).std.cte;
-        std_hc = pstats.(regions{ii}).(params{j}).std.nc;
+        % Retrieve median and standard deviation
+        med = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).med));
+        stdd = cell2mat(struct2cell(pstats.(regions{ii}).(params{j}).std));
         % Add summary stats to struct
         stat_struct.(param_name{j}) =...
-            vertcat(p, coef, se, cil, ciu, df, t,...
-            avg_ad, std_ad, avg_hc, std_hc, avg_cte, std_cte);
+            [p; coef; se; t; df; cil; ciu; med; stdd];
     end
     
     % Create the summary statistics table (including diameter)
@@ -287,6 +226,7 @@ for ii = 1:length(regions)
     % Create output filename
     table_out = fullfile(dout, fname);
     writetable(ptable, table_out, 'Sheet',regions{ii});
+    %}
 end
 
 end

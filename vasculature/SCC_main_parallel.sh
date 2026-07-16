@@ -25,7 +25,7 @@
 # Iterate over all subjects and use smallest sigma (1-51:3)
 # Iterate over all subjects and use all sigmas (1-51)
 # Iterate over all subjects and use single sigma array (1-18)
-#$ -t 1-18
+#$ -t 1-5
 
 # Keep track of information related to the current job
 echo "=========================================================="

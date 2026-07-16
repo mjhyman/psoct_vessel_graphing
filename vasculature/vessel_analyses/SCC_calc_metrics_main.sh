@@ -4,7 +4,7 @@
 #$ -P npbssmic
 
 # Specify number of cores
-#$ -pe omp 8
+#$ -pe omp 2
 # Specify memory per core
 #$ -l mem_per_core=8G
 

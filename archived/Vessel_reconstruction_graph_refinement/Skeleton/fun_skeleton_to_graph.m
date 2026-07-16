@@ -95,8 +95,13 @@ tmp3 = [1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 3 3 3 3 3 3 3 3 3];
 num.neighbor_add_pad = sub2ind(num.mask_size_pad, tmp1(:), tmp2(:), tmp3(:));
 num.neighbor_add_pad = num.neighbor_add_pad - num.neighbor_add_pad(14);
 num.neighbor_add_pad(14) = [];
-
-num.neighbor_add = sub2ind(num.mask_size, tmp1(:), tmp2(:), tmp3(:));
+% Try to add neighbor
+try
+    num.neighbor_add = sub2ind(num.mask_size, tmp1(:), tmp2(:), tmp3(:));
+catch ME
+    pause(0.1)
+    fprintf(ME)
+end
 num.neighbor_add = num.neighbor_add - num.neighbor_add(14);
 num.neighbor_add(14) = [];
 %% Generate 1D sparse matrix representation of the skeleton array

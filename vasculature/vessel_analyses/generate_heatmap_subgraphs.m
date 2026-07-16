@@ -25,7 +25,7 @@ maxNumCompThreads(NSLOTS);
 %% Initialize directories, filenames, parameters
 
 %%% All subjects to analyze for vasculature
-subid = {'AD_10382', 'AD_20832', 'AD_20969','AD_21354', 'AD_21424',...
+subid = {'AD_10382', 'AD_8790', 'AD_20969','AD_21354', 'AD_21424',...
          'CTE_6489', 'CTE_6912','CTE_7019','CTE_7126',...
          'NC_6839',  'NC_6974', 'NC_8653','NC_21499', 'NC_8095'};
 %%% Directories 
@@ -201,13 +201,27 @@ for ii = 1:length(subid)
     nodes = graph.nodes;
     % Create array of end node positions
     end_node_pos = nodes(graph.endNodes,:);
-    % Calculate number of cubes in z dimension
+    
+    %%% Calculate number of cubes in z dimension
+    % Round up the quotient of volume thickness / subgraph thickness
     Nz = ceil(size(seg,3) ./ n_z);
+    % Ensure that the last slice is more than 3 voxels thick
+    r = rem(size(seg,3),n_z);
+    % If less than 3 voxels thick, then remove last slice
+    % The prexisting code (fun_skeleton_to_graph) requires a volume
+    % at least 3 voxels thick, otherwise it will break.
+    if r < 3
+        Nz = Nz - 1;
+    end
 
     %%% Load tissue mask
     mask = fullfile(dpath,subid{ii},mdir,'mask_tiss.mat');
     mask = load(mask);
-    mask = mask.mask_tiss;
+    try
+        mask = mask.mask_tiss;
+    catch
+        mask = mask.tiss_mask;
+    end
 
     %%% Verify that both segmentation and mask are logicals
     if ~isa(seg,'logical')
@@ -228,6 +242,12 @@ for ii = 1:length(subid)
     hm_z_idx = 0;
     % Iterate over the z-axis
     for z = 1:n_z:size(seg,3)
+        % If thickness of iteration is < 3 voxels, then skip iteration.
+        % The prexisting code (fun_skeleton_to_graph) requires a volume
+        % at least 3 voxels thick, otherwise it will break.
+        if (size(seg,3) - z) < 3
+            continue
+        end
         % Iterate the heatmap depth index
         hm_z_idx = hm_z_idx + 1;
         % Iterate over rows
@@ -351,7 +371,7 @@ for ii = 1:length(subid)
             end
         end
     end
-   
+    
     %% Add metrics to heatmap struct
     heatmap.(sub).vf = vf_mat;
     heatmap.(sub).ld = ld_mat;
@@ -388,49 +408,14 @@ for ii = 1:length(subid)
     sprintf('FINISHED HEATMAP FOR SUBJECT %s',sub)
 end
 
-% Save the heatmap struct
+%% Save the heatmap struct
 heat_out = append('heatmap_',num2str(cube_side),'.mat');
 heat_out = fullfile(mpath, heat_out);
 save(heat_out,'heatmap','-v7.3');
 
-%% Generate Heat Maps (not normalized)
-% Individually generate a heat map for each subject. The colorbar scales
-% are not normalied to one another.
-%{
-% Load Heat map
-heatmap = load(fullfile(mpath, 'heatmap.mat'));
-heatmap = heatmap.heatmap;
-% Iterate over subject ID list
-for ii = 1:length(subid)
-    %%% Load the heatmap for the subject
-    sub = subid{ii};
-    heatmap_vf = heatmap.(sub).vf;
-    heatmap_ld = heatmap.(sub).ld;
-    heatmap_bd = heatmap.(sub).bd;
-    masks = heatmap.(sub).mask;
-
-    %%% Output filepath
-    heatmap_dir = fullfile(mpath,'heatmaps',sub,roi_dir);
-    if ~isfolder(heatmap_dir)
-        mkdir(heatmap_dir);
-    end
-
-    % Iterate over depths in volume fraction heat map
-    plot_save_heatmap(Nz, heatmap_vf, 0, [],masks,'Volume Fraction',...
-        '(a.u.)', heatmap_dir,'heatmap_vf')
-    % Iterate over depths in length density heat map
-    plot_save_heatmap(Nz, heatmap_ld, 0, [],masks,'Length Density',...
-        'Length (\mu) / Volume (\mu^3)',heatmap_dir,'heatmap_ld')
-    % Iterate over depths in branch density heat map
-    plot_save_heatmap(Nz, heatmap_bd, 0, [],masks,'Branch Density',...
-        'Branches / Volume (\mu^3)',heatmap_dir,'heatmap_bd')
-end
-%}
-
 %% Generate heat maps - normalized across subjects
 % Iterate over each metric, choose one depth from each subject, normalize
 % the colorbar across all subjects for this metric.
-
 
 % Load Heat map
 heat_out = append('heatmap_',num2str(cube_side),'.mat');

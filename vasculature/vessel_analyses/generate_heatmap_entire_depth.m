@@ -54,7 +54,10 @@ hm = fullfile(mpath,hm);
 hm = load(hm);
 hm = hm.heatmap;
 % Extract subject IDs from heatmap
-subid = fields(hm);
+% subid = fields(hm);
+% Manually set subIDs
+subid = {'AD_10382','AD_8790','AD_20969','AD_21354','AD_21424',...
+        'NC_6839','NC_6974','NC_8653','NC_21499','NC_8095'};
 % Initialize struct to store heatmaps across depth
 hm_stack = struct();
 % Initialize the maximum values for x,y dimensions. These are used for
@@ -298,8 +301,9 @@ for d = 1:Ndepths
     end
     % Save figure as PNG
     fout = fullfile(dpath, fout);
-    pause(0.5)
+    pause(1)
     saveas(gca, fout,'png');
+    pause(1)
     close;
 end
 end
